@@ -1,0 +1,28 @@
+{
+  "name": "spatius-cli-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "build": "pnpm --filter spatius-cli build && pnpm --filter @spatius/media-worker build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "skills:check": "pnpm --filter spatius-cli build && node scripts/check-skills.mjs",
+    "package:check": "pnpm --filter spatius-cli build && node scripts/check-package.mjs",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm skills:check && pnpm package:check && pnpm --filter @spatius/media-worker build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.39.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.40.0",
+    "vitest": "~4.1.0",
+    "yaml": "^2.8.0"
+  }
+}

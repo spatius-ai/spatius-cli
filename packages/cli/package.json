@@ -1,0 +1,45 @@
+{
+  "name": "spatius-cli",
+  "version": "0.1.0-experimental.0",
+  "description": "Spatius avatar and video workflows for coding agents",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "spatius": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spatius-ai/spatius-cli.git",
+    "directory": "packages/cli"
+  },
+  "scripts": {
+    "build": "tsup && node ../../scripts/package-assets.mjs",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@spatius/contracts": "workspace:*",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

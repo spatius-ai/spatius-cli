@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+coverage/
+*.tgz
+.DS_Store
+packages/cli/skills/
+packages/cli/docs/
+packages/cli/README.md
+packages/cli/LICENSE
+packages/cli/THIRD_PARTY_NOTICES.md

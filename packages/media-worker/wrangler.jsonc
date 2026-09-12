@@ -1,0 +1,104 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spatius-cli-media-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "invocation_logs": false,
+    },
+  },
+  "limits": {
+    "cpu_ms": 10000,
+  },
+  "vars": {
+    "STUDIO_API_URL": "https://api.studio.spatius.ai",
+    "PUBLIC_URL": "http://localhost:8787",
+    "SIGNING_KEY_ID": "v1",
+    "MAX_STORED_BYTES": "2147483648",
+    "MAX_UPLOADS_PER_DAY": "100",
+    "MAX_UNFINISHED_UPLOADS": "10",
+    "REQUESTS_PER_SECOND": "10",
+    "REQUEST_BURST": "20",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "UPLOADS",
+        "class_name": "UploadCoordinator",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["UploadCoordinator"],
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "spatius-cli-media-local",
+    },
+  ],
+  "env": {
+    "staging": {
+      "name": "spatius-cli-media-staging",
+      "vars": {
+        "STUDIO_API_URL": "https://api.studio.spatius.ai",
+        "PUBLIC_URL": "https://spatius-cli-media-staging.472617147.workers.dev",
+        "SIGNING_KEY_ID": "v1",
+        "MAX_STORED_BYTES": "2147483648",
+        "MAX_UPLOADS_PER_DAY": "100",
+        "MAX_UNFINISHED_UPLOADS": "10",
+        "REQUESTS_PER_SECOND": "10",
+        "REQUEST_BURST": "20",
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "UPLOADS",
+            "class_name": "UploadCoordinator",
+          },
+        ],
+      },
+      "r2_buckets": [
+        {
+          "binding": "MEDIA_BUCKET",
+          "bucket_name": "spatius-cli-media-staging",
+        },
+      ],
+    },
+    "production": {
+      "name": "spatius-cli-media",
+      "vars": {
+        "STUDIO_API_URL": "https://api.studio.spatius.ai",
+        "PUBLIC_URL": "https://cli-media.spatius.ai",
+        "SIGNING_KEY_ID": "v1",
+        "MAX_STORED_BYTES": "2147483648",
+        "MAX_UPLOADS_PER_DAY": "100",
+        "MAX_UNFINISHED_UPLOADS": "10",
+        "REQUESTS_PER_SECOND": "10",
+        "REQUEST_BURST": "20",
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "UPLOADS",
+            "class_name": "UploadCoordinator",
+          },
+        ],
+      },
+      "r2_buckets": [
+        {
+          "binding": "MEDIA_BUCKET",
+          "bucket_name": "spatius-cli-media-production",
+        },
+      ],
+    },
+  },
+}

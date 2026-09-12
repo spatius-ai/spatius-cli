@@ -1,0 +1,2 @@
+# Generate a random secret locally; never commit .dev.vars.
+SIGNING_KEYS={"v1":"replace-with-a-random-secret-at-least-32-characters"}

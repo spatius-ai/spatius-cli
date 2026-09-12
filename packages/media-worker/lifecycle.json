@@ -1,0 +1,15 @@
+{
+  "rules": [
+    {
+      "id": "temporary-media-fallback",
+      "enabled": true,
+      "conditions": { "prefix": "media/" },
+      "deleteObjectsTransition": {
+        "condition": { "type": "Age", "maxAge": 172800 }
+      },
+      "abortMultipartUploadsTransition": {
+        "condition": { "type": "Age", "maxAge": 86400 }
+      }
+    }
+  ]
+}
