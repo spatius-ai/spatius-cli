@@ -62,6 +62,7 @@ async function fixture(platform: NodeJS.Platform = 'darwin') {
       signal: controller.signal,
       environment: { PATH: path },
       platform,
+      home: join(directory, 'home'),
     });
   return { directory, bin, pkg, binary, runner, controller, services };
 }
@@ -144,6 +145,54 @@ describe('installer package services', () => {
       (await service.installCli('0.1.0-beta.0', await service.inspectGlobal()))
         .available,
     ).toBe(true);
+  });
+  it('does not treat npm-injected project bins as a persistent CLI', async () => {
+    const h = await fixture();
+    const local = join(h.directory, 'node_modules', '.bin');
+    await mkdir(local, { recursive: true });
+    await writeFile(join(local, 'spatius'), '', { mode: 0o755 });
+    expect(await h.services(local).existingCliAvailable()).toBe(false);
+    await expect(
+      h.services(local).installCompletions('bash'),
+    ).rejects.toMatchObject({ code: 'INSTALL_COMPLETIONS_FAILED' });
+    expect(h.runner).not.toHaveBeenCalled();
+  });
+  it('probes the persistent binary instead of the npx launcher before installing completions', async () => {
+    const h = await fixture();
+    const launcher = join(h.directory, '_npx/temporary/node_modules/.bin');
+    await mkdir(launcher, { recursive: true });
+    await writeFile(join(launcher, 'spatius'), '', { mode: 0o755 });
+    h.runner.mockResolvedValue({
+      code: 0,
+      stdout: 'plain:\nbash\nzsh\nfish\n',
+      stderr: '',
+    });
+    const result = await h
+      .services(`${launcher}:${h.bin}`)
+      .installCompletions('fish');
+    expect(h.runner).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        command: h.binary,
+        args: ['__complete', '--', 'completion', ''],
+      }),
+    );
+    expect(result.files).toEqual([
+      join(h.directory, 'home/.config/fish/completions/spatius.fish'),
+    ]);
+  });
+  it('rejects an older persistent CLI before writing shell files', async () => {
+    const h = await fixture();
+    await expect(h.services().installCompletions('zsh')).rejects.toMatchObject({
+      code: 'INSTALL_COMPLETIONS_FAILED',
+    });
+    expect(
+      await import('node:fs/promises').then(({ access }) =>
+        access(join(h.directory, 'home')).then(
+          () => true,
+          () => false,
+        ),
+      ),
+    ).toBe(false);
   });
   it('uses Windows global prefix and .cmd executable', async () => {
     const h = await fixture('win32');

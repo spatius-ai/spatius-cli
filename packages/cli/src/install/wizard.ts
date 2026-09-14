@@ -1,10 +1,14 @@
 import type { AuthManager } from '../auth/index.js';
 import { checkInterrupted } from './process.js';
 import type { InstallServices } from './services.js';
+import type { CompletionShell } from '../completions.js';
 
 export interface InstallerUI {
   welcome(version: string): Promise<void>;
   confirm(message: string): Promise<boolean>;
+  selectCompletionShell(
+    detected?: CompletionShell,
+  ): Promise<CompletionShell | undefined>;
   note(message: string, title?: string): void;
   task<T>(message: string, work: () => Promise<T>): Promise<T>;
   handoff(work: () => Promise<void>): Promise<void>;
@@ -22,6 +26,8 @@ export interface WizardOptions {
     | 'installCli'
     | 'existingCliAvailable'
     | 'installSkills'
+    | 'detectCompletionShell'
+    | 'installCompletions'
   >;
   createAuth: () => Pick<AuthManager, 'status' | 'login' | 'setup'>;
 }
@@ -35,9 +41,11 @@ export async function runWizard({
 }: WizardOptions): Promise<void> {
   let cli = 'Skipped';
   let skills = 'Skipped';
+  let completions = 'Skipped';
   let studio = 'Not configured during this run';
   let available = false;
-  const summary = () => `CLI: ${cli}\nSkills: ${skills}\nStudio: ${studio}`;
+  const summary = () =>
+    `CLI: ${cli}\nCompletions: ${completions}\nSkills: ${skills}\nStudio: ${studio}`;
   try {
     checkInterrupted(signal);
     await services.prerequisites();
@@ -71,6 +79,41 @@ export async function runWizard({
         cli += ' (PATH needs attention)';
       }
     } else available = await services.existingCliAvailable();
+    checkInterrupted(signal);
+    if (available) {
+      const detected = await services.detectCompletionShell();
+      checkInterrupted(signal);
+      if (detected.supported) {
+        if (detected.shell)
+          ui.note(
+            `Suggested shell: ${detected.shell} (${detected.source}). Choose a different shell if needed.`,
+            'Shell completions',
+          );
+        const shell = await ui.selectCompletionShell(detected.shell);
+        checkInterrupted(signal);
+        if (shell) {
+          completions = `${shell}: Not completed`;
+          const result = await ui.task(`Installing ${shell} completions`, () =>
+            services.installCompletions(shell),
+          );
+          completions = `${shell}: Installed`;
+          ui.note(
+            `Configured:\n${result.files.join('\n')}\n${result.backups.length ? `\nBackups:\n${result.backups.join('\n')}\n` : ''}\n${result.activation}`,
+            'Shell completions',
+          );
+        }
+      } else
+        ui.note(
+          'Automatic completion setup supports Bash, Zsh, and Fish on macOS and Linux.',
+          'Shell completions',
+        );
+    } else {
+      completions = 'Skipped (spatius needs to be on PATH)';
+      ui.note(
+        'After installing the CLI and adding it to PATH, rerun the installer to enable shell completions.',
+        'Shell completions',
+      );
+    }
     checkInterrupted(signal);
     if (shouldInstallSkills) {
       skills = 'Not completed; see installer results above';

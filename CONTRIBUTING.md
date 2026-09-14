@@ -108,3 +108,11 @@ Install Bash, Zsh, and Fish to exercise all adapter tests locally. Missing shell
 are skipped locally and required in CI. Tests use an isolated executable and
 temporary media paths; no shell profiles or login state are changed. Verify
 the installed tarball as well as source execution with `pnpm check`.
+
+Installer completion persistence lives in `packages/cli/src/install/completions.ts`.
+Keep shell detection bounded, inspect process identity rather than arguments,
+and account for npm exec/npx wrappers and transient PATH entries. Test profile
+updates in temporary home directories, including symlinks, login-file priority,
+XDG/ZDOTDIR overrides, backups, repeat installation, and cancellation. Review
+the shell-selection prompt in a PTY with mocked package and Studio services;
+never install globally or edit your real shell profiles as a test.

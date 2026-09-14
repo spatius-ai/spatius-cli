@@ -119,7 +119,7 @@ export const definitions: Definition[] = [
   {
     path: 'install',
     description:
-      'Interactively install the CLI, agent skills, and Studio setup.',
+      'Interactively install the CLI, shell completions, agent skills, and Studio setup.',
     output:
       'Human-readable installation progress and summary; requires a terminal.',
     example: 'spatius install',

@@ -16,6 +16,11 @@ Avatar creation uses your existing Avatar Creations balance.
 npx @spatius/cli install
 ```
 
+The installer offers global CLI installation, shell completions, agent skills,
+and Studio setup. For completions, it suggests the launching shell; choose
+Bash, Zsh, Fish, or Skip. Open a new terminal afterward, or use the activation
+command printed by the installer.
+
 ### Manual installation
 
 ```sh
@@ -26,7 +31,8 @@ spatius setup
 
 ### Shell completions
 
-Generate completions for Bash, Zsh, or Fish after installing `spatius` on your
+The interactive installer can set these up for you. To configure them manually,
+generate completions for Bash, Zsh, or Fish after installing `spatius` on your
 `PATH`. They complete commands, flags, allowed values, and local media paths.
 No login is needed.
 

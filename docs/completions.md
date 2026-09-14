@@ -11,6 +11,44 @@ The shell handles filename quoting and directory navigation. Account IDs, names,
 tokens, and arbitrary values are not suggested. Pressing Tab queries the local
 CLI command registry; it does not read credentials or make service requests.
 
+## Interactive installation
+
+```sh
+npx @spatius/cli install
+```
+
+After installing or finding a persistent CLI, the installer offers completion
+setup. It looks through npm's wrapper processes for Bash, Zsh, or Fish and
+suggests the shell it finds. If process inspection is unavailable, it uses
+the configured login shell (`SHELL`) as a suggestion. You can choose another
+shell or Skip; an unknown shell defaults to Skip. The temporary npx executable
+and npm-injected project bin directories do not count as a persistent CLI.
+
+The selected shell controls which files are configured:
+
+| Shell | Completion script                                 | Startup configuration                                                                                                                            |
+| ----- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bash  | `$XDG_DATA_HOME/spatius/completions/spatius.bash` | `~/.bashrc` and the first existing file among `~/.bash_profile`, `~/.bash_login`, and `~/.profile`; creates `.bash_profile` only when none exist |
+| Zsh   | `$XDG_DATA_HOME/spatius/completions/spatius.zsh`  | `$ZDOTDIR/.zshrc`, or `~/.zshrc` when `ZDOTDIR` is not exported; initializes completions if needed                                               |
+| Fish  | `$XDG_CONFIG_HOME/fish/completions/spatius.fish`  | Automatically loaded by Fish; no profile edit                                                                                                    |
+
+`XDG_DATA_HOME` defaults to `~/.local/share`; `XDG_CONFIG_HOME` defaults to
+`~/.config`. Export custom locations before running the installer. Relative
+XDG paths are ignored, following the XDG convention.
+
+The installer shows the configured paths and activation command. Its child
+process cannot activate completions inside your current shell, so open a new
+terminal or run that command yourself. The saved scripts use `spatius` on your
+normal `PATH`, never a cached npx path, and do not launch npx on Tab presses.
+If the global bin directory needs a PATH fix, complete that first and rerun
+the installer to set up completions.
+
+Existing startup content is preserved outside a marked Spatius completion
+block. Re-running updates that block rather than appending duplicates. Changed
+existing files receive a sibling `.spatius-backup-<id>` backup; unchanged files
+are reused. Symlinked dotfiles retain their links and update the target file.
+Automatic setup is supported on macOS and Linux.
+
 ## Bash
 
 Bash 3.2 or newer is supported, including macOS's bundled Bash. The separate
@@ -86,3 +124,9 @@ Fish loads this file automatically. For only the current session, use
 - To remove completions, remove your source/fpath line if you added one solely
   for Spatius, delete the generated file, and start a new shell. Keep shared
   completion directories and your general shell initialization intact.
+- For installer-managed setup, remove the block between
+  `# >>> spatius completions >>>` and `# <<< spatius completions <<<` from the
+  startup files listed in the installer summary, then remove its generated
+  script. If installation failed partway, inspect those files and the reported
+  backups before retrying; completed changes are retained. Correct malformed
+  markers or file permissions rather than deleting unrelated startup content.

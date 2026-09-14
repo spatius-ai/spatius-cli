@@ -1,5 +1,6 @@
 import { access, readFile, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { homedir } from 'node:os';
 import { delimiter, isAbsolute, join, resolve } from 'node:path';
 import { CliError } from '../core/errors.js';
 import {
@@ -9,6 +10,11 @@ import {
 } from './process.js';
 
 import { bundledSkillsDirectory, skillNames } from './assets.js';
+import {
+  detectCompletionShell,
+  installShellCompletions,
+} from './completions.js';
+import type { CompletionShell } from '../completions.js';
 export { bundledSkillsDirectory, skillNames } from './assets.js';
 export interface GlobalInstallation {
   version?: string;
@@ -29,6 +35,7 @@ interface Options {
   environment?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   skillsDirectory?: string;
+  home?: string;
 }
 
 export class InstallServices {
@@ -173,6 +180,51 @@ export class InstallServices {
   async existingCliAvailable(): Promise<boolean> {
     return (await this.findOnPath()) !== undefined;
   }
+  detectCompletionShell() {
+    return detectCompletionShell({
+      ...this.options,
+      environment: this.environment,
+      platform: this.platform,
+      parentPid: process.ppid,
+    });
+  }
+  async installCompletions(shell: CompletionShell) {
+    const binary = await this.findOnPath();
+    if (!binary)
+      throw new CliError(
+        'INSTALL_COMPLETIONS_FAILED',
+        'Completions require a persistent spatius executable on PATH.',
+        {
+          recovery:
+            'Install the CLI globally and add its bin directory to PATH, then rerun the installer.',
+        },
+      );
+    const probe = await this.run(
+      binary,
+      ['__complete', '--', 'completion', ''],
+      false,
+      15000,
+    );
+    if (
+      probe.code !== 0 ||
+      !probe.stdout.startsWith('plain:\n') ||
+      !probe.stdout.split('\n').includes(shell)
+    )
+      throw new CliError(
+        'INSTALL_COMPLETIONS_FAILED',
+        'The persistent CLI does not support these shell completions.',
+        {
+          recovery:
+            'Rerun the installer and install its CLI version globally before setting up completions.',
+        },
+      );
+    return installShellCompletions(shell, {
+      home: this.options.home ?? homedir(),
+      environment: this.environment,
+      cwd: this.options.cwd,
+      signal: this.options.signal,
+    });
+  }
   private async findOnPath(): Promise<string | undefined> {
     const path = this.environment.PATH ?? this.environment.Path ?? '';
     const extensions =
@@ -182,13 +234,9 @@ export class InstallServices {
     for (const directory of path.split(
       this.platform === 'win32' ? ';' : delimiter,
     )) {
-      // npm exec/npx prepends its temporary launcher; it is not the user's persistent PATH.
-      if (
-        /[/\\]_npx[/\\][^/\\]+[/\\]node_modules[/\\]\.bin[/\\]?$/.test(
-          directory,
-        )
-      )
-        continue;
+      // npm exec/npx adds its cache launcher and project-local bins. Neither
+      // establishes that spatius will be available after the installer exits.
+      if (/[/\\]node_modules[/\\]\.bin[/\\]?$/.test(directory)) continue;
       for (const extension of extensions) {
         const candidate = resolve(
           this.options.cwd,

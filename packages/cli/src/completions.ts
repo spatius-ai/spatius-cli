@@ -1,4 +1,5 @@
-export const completionShells = ['bash', 'zsh', 'fish'];
+export type CompletionShell = 'bash' | 'zsh' | 'fish';
+export const completionShells: CompletionShell[] = ['bash', 'zsh', 'fish'];
 
 // The first protocol line is plain:<prefix> or files:<prefix>. Remaining lines
 // are literal candidates, never shell code. The shell owns filename quoting.

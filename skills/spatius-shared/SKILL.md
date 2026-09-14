@@ -12,7 +12,7 @@ Use the installed `spatius` executable. If installation is needed, the prereleas
 package is `@spatius/cli@beta` (`npm install -g @spatius/cli@beta`); stable releases
 use `@spatius/cli`. The executable name remains `spatius`.
 For human onboarding, `npx @spatius/cli@beta install` opens an interactive
-installer for the global CLI, all three bundled skills, and optional Studio
+installer for the global CLI, optional shell completions, all three bundled skills, and optional Studio
 login/setup. It requires a local terminal outside CI and does not support
 `--json`. Agent scripts should use the individual commands below; do not run
 the installer expecting structured output or unattended prompts. The skills
