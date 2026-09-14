@@ -1,6 +1,6 @@
 ---
 name: spatius-shared
-description: Set up Spatius CLI authentication and app credentials, inspect command schemas, and recover account access for avatar or video workflows. Use when preparing Spatius CLI or resolving its authentication and setup errors.
+description: Set up Spatius CLI authentication, manage Studio apps and API keys, inspect command schemas, and recover account access for avatar or video workflows. Use when preparing Spatius CLI, managing app credentials, or resolving authentication and setup errors.
 license: MIT
 ---
 
@@ -43,6 +43,22 @@ Setup reuses an owned `Spatius CLI` app and key. If selection is required, use
 `spatius apps list` and `spatius setup --app-id <id>`. Never read credential files
 to obtain keys. Login does not grant Avatar or Video API approval; report a 403
 as an account/permission issue instead of repeatedly logging in.
+
+App/key management uses Studio login and does not require `setup` or Open API
+enablement. Read [Studio management](references/studio-management.md) for
+creation, key selection, deletion, and uncertain-creation recovery. App creation
+and key creation are separate commands; neither changes the CLI's selected app.
+
+```sh
+spatius apps list
+spatius apps get app_example
+spatius apps create --name "My app"
+spatius apps keys list --app-id app_example
+```
+
+Replace `app_example` with an owned app ID. Key listings return a non-secret
+`keyId` fingerprint by default. Keep raw keys out of chat and diagnostics;
+use `--show-secrets` only when explicitly needed for private credential delivery.
 
 Except for the human-only `install` command, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
 Progress and structured failures go to stderr. Inspect the exit code and error

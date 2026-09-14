@@ -1,6 +1,12 @@
 import { CliError } from '../core/errors.js';
 
 export type ObjectValue = Record<string, unknown>;
+export interface StudioRequestOptions {
+  token?: string;
+  body?: unknown;
+  method?: 'GET' | 'POST' | 'DELETE';
+  signal?: AbortSignal;
+}
 
 export function object(value: unknown): ObjectValue {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -47,17 +53,18 @@ export class StudioClient {
 
   async request(
     path: string,
-    options: { token?: string; body?: unknown; signal?: AbortSignal } = {},
+    options: StudioRequestOptions = {},
   ): Promise<ObjectValue> {
     const signal =
       options.signal && this.signal
         ? AbortSignal.any([options.signal, this.signal])
         : (options.signal ?? this.signal);
     if (signal?.aborted)
-      throw new CliError('INTERRUPTED', 'Studio setup was interrupted.', {
+      throw new CliError('INTERRUPTED', 'The Studio request was interrupted.', {
         exitCode: 130,
       });
-    const method = options.body === undefined ? 'GET' : 'POST';
+    const method =
+      options.method ?? (options.body === undefined ? 'GET' : 'POST');
     let response: Response;
     try {
       response = await this.fetcher(new URL(path, this.origin), {
@@ -83,7 +90,7 @@ export class StudioClient {
       if (signal?.aborted)
         throw new CliError(
           'INTERRUPTED',
-          'Studio authorization or setup was interrupted.',
+          'The Studio request was interrupted.',
           {
             exitCode: 130,
           },
@@ -94,7 +101,7 @@ export class StudioClient {
         {
           retryable: method === 'GET',
           recovery:
-            'Check your connection and retry a read. Reconcile setup before retrying a creation.',
+            'Check your connection and retry a read. Reconcile the saved operation before retrying a creation.',
         },
       );
     }

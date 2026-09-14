@@ -6,6 +6,7 @@ import {
   object,
   string,
   type ObjectValue,
+  type StudioRequestOptions,
 } from './client.js';
 import { browserLogin, type LoginOptions } from './login.js';
 import { AuthStorage, type Profile, type State } from './storage.js';
@@ -34,6 +35,15 @@ export interface AuthStatus {
   profileKey?: string;
   appId?: string;
   expiresAt?: string;
+}
+
+export interface StudioSession {
+  profileKey: string;
+  request(
+    path: string,
+    options?: Omit<StudioRequestOptions, 'token'>,
+  ): Promise<ObjectValue>;
+  clearSelection(appId: string, keyId?: string): Promise<void>;
 }
 
 const defaultAppName = 'Spatius CLI';
@@ -282,6 +292,43 @@ export class AuthManager {
       const profile = this.current(state);
       await this.verifyIdentity(state, profile);
       return (await this.apps(state, profile)).map(safeApp);
+    });
+  }
+
+  /** Keep management and its local state bound to one verified account. */
+  async withStudioSession<T>(
+    run: (session: StudioSession) => Promise<T>,
+  ): Promise<T> {
+    return this.storage.locked(async (state) => {
+      const profile = this.current(state);
+      await this.verifyIdentity(state, profile);
+      return run({
+        profileKey: this.profileKey(profile.userId),
+        request: async (path, options = {}) => {
+          const request = (token: string) =>
+            this.client.request(path, { ...options, token });
+          if (
+            (options.method ??
+              (options.body === undefined ? 'GET' : 'POST')) === 'GET'
+          )
+            return this.authorized(state, profile, request);
+          await this.ensureToken(state, profile);
+          // Mutations are submitted once, including when authorization fails.
+          return request(profile.accessToken!);
+        },
+        clearSelection: async (appId, keyId) => {
+          if (
+            profile.appId !== appId ||
+            (keyId !== undefined &&
+              (!profile.apiKey || hash(profile.apiKey) !== keyId))
+          )
+            return;
+          delete profile.apiKey;
+          delete profile.pendingKey;
+          if (keyId === undefined) delete profile.appId;
+          await this.storage.write(state);
+        },
+      });
     });
   }
 

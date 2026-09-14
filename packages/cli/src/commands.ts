@@ -1,6 +1,7 @@
 import { Command, Option } from 'commander';
 import type { AuthManager } from './auth/index.js';
 import type { Workflows } from './workflows/index.js';
+import type { StudioWorkflows } from './workflows/studio.js';
 import type { MediaKind, VideoSettings } from '@spatius/contracts';
 import { CliError } from './core/errors.js';
 
@@ -25,6 +26,7 @@ interface Definition {
 export interface Context {
   auth: AuthManager;
   workflows: Workflows;
+  studio: StudioWorkflows;
   signal: AbortSignal;
   progress: (event: unknown) => void;
 }
@@ -61,6 +63,14 @@ const pages: Flag[] = [
 const status: Flag = {
   flags: '--status <statuses>',
   description: 'Comma-separated job status filters.',
+};
+const studioApp: Flag = {
+  flags: '--app-id <id>',
+  description: 'Owned Studio app ID (required).',
+};
+const showSecrets: Flag = {
+  flags: '--show-secrets',
+  description: 'Include raw API keys in stdout; keep output private.',
 };
 const str = (v: Values, key: string) => v[key] as string | undefined;
 const num = (v: Values, key: string) => v[key] as number | undefined;
@@ -170,6 +180,84 @@ export const definitions: Definition[] = [
     run: async (_, __, c) => c.auth.listApps(),
   },
   {
+    path: 'apps get',
+    description: 'Read an owned Studio app without exposing API keys.',
+    args: [{ name: 'id', required: true }],
+    output: 'App metadata and apiKeyCount; no credentials.',
+    example: 'spatius apps get app_example',
+    run: async (a, _, c) => c.studio.getApp(a[0]!),
+  },
+  {
+    path: 'apps create',
+    description:
+      'Create a Studio app. Does not create a key or change CLI setup.',
+    flags: [
+      {
+        flags: '--name <name>',
+        description: 'App name (required unless resuming).',
+      },
+      resume,
+    ],
+    output: 'operationId, appId, and name; no credentials.',
+    example: 'spatius apps create --name "My app"',
+    run: async (_, v, c) =>
+      c.studio.createApp({ name: str(v, 'name'), resume: str(v, 'resume') }),
+  },
+  {
+    path: 'apps delete',
+    description:
+      'Delete an owned Studio app and its API keys; clears matching CLI selection.',
+    args: [{ name: 'id', required: true }],
+    output: 'appId and deleted state.',
+    example: 'spatius apps delete app_example',
+    run: async (a, _, c) => c.studio.deleteApp(a[0]!),
+  },
+  {
+    path: 'apps keys list',
+    description: 'List a page of Studio API keys, hidden by default.',
+    flags: [studioApp, ...pages, showSecrets],
+    output:
+      'appId, apiKeys with SHA-256 keyId and metadata, pagination.nextPageToken; raw keys only with --show-secrets.',
+    example: 'spatius apps keys list --app-id app_example --page-size 20',
+    run: async (_, v, c) =>
+      c.studio.listKeys(str(v, 'appId') ?? '', {
+        ...pageOptions(v),
+        showSecrets: bool(v, 'showSecrets'),
+      }),
+  },
+  {
+    path: 'apps keys create',
+    description: 'Create one Studio API key without changing CLI setup.',
+    flags: [
+      {
+        ...studioApp,
+        description: 'Owned Studio app ID (required unless resuming creation).',
+      },
+      resume,
+      showSecrets,
+    ],
+    output:
+      'operationId, appId, keyId, and metadata; raw key only with --show-secrets.',
+    example: 'spatius apps keys create --app-id app_example',
+    run: async (_, v, c) =>
+      c.studio.createKey({
+        appId: str(v, 'appId'),
+        resume: str(v, 'resume'),
+        showSecrets: bool(v, 'showSecrets'),
+      }),
+  },
+  {
+    path: 'apps keys delete',
+    description:
+      'Delete a Studio API key using its full keyId; clears a matching cached key.',
+    args: [{ name: 'key-id', required: true }],
+    flags: [studioApp],
+    output: 'appId, keyId, and deleted state; no raw key.',
+    example:
+      'spatius apps keys delete 0000000000000000000000000000000000000000000000000000000000000000 --app-id app_example',
+    run: async (a, v, c) => c.studio.deleteKey(str(v, 'appId') ?? '', a[0]!),
+  },
+  {
     path: 'assets upload',
     description: 'Upload a local input to temporary storage.',
     output: 'Upload ID, accepted parts, status, and completed URL/expiration.',
@@ -252,11 +340,27 @@ export const definitions: Definition[] = [
   },
   {
     path: 'avatars list',
-    description: 'List account avatars.',
-    output: 'Avatars and pagination.nextPageToken.',
-    example: 'spatius avatars list --page-size 20',
-    flags: pages,
-    run: async (_, v, c) => c.workflows.listAvatars(pageOptions(v)),
+    description:
+      'List public or custom avatars through Studio login; no app setup required.',
+    output:
+      'type, avatars, pagination.nextPageToken, and custom status counts when available.',
+    example: 'spatius avatars list --type public --page-size 20',
+    flags: [
+      ...pages,
+      {
+        flags: '--type <type>',
+        description: 'Studio avatar collection (default: custom).',
+        choices: ['public', 'custom'],
+        default: 'custom',
+      },
+      {
+        flags: '--status <statuses>',
+        description:
+          'Custom avatars only: comma-separated success,generating,failure.',
+      },
+    ],
+    run: async (_, v, c) =>
+      c.studio.listAvatars({ ...pageOptions(v), type: str(v, 'type') }),
   },
   {
     path: 'videos create',
