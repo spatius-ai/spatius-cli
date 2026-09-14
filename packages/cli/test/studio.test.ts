@@ -25,6 +25,7 @@ const json = (value: unknown, status = 200) => Response.json(value, { status });
 async function fixture(
   handler: (url: URL, options: RequestInit) => Response | Promise<Response>,
   profile: Partial<Profile> = {},
+  signal?: AbortSignal,
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'spatius-studio-test-'));
   dirs.push(dir);
@@ -44,6 +45,14 @@ async function fixture(
   });
   const fetcher = vi.fn<typeof fetch>(async (input, options = {}) => {
     const url = new URL(String(input));
+    if (url.origin === consoleOrigin) {
+      expect(url.pathname).toBe('/v1/console/session-tokens');
+      expect(options.redirect).toBe('error');
+      expect(new Headers(options.headers).get('authorization')).toBeNull();
+      expect(new Headers(options.headers).get('x-app-id')).toBeNull();
+      expect(new Headers(options.headers).get('x-api-key')).not.toBeNull();
+      return handler(url, options);
+    }
     expect(url.origin).toBe(origin);
     expect(options.redirect).toBe('error');
     expect(new Headers(options.headers).get('authorization')).toBe(
@@ -60,6 +69,7 @@ async function fixture(
     mediaOrigin: 'https://media.example.test',
     configDir: dir,
     fetch: fetcher,
+    signal,
   });
   const events: Array<Record<string, unknown>> = [];
   const studio = new StudioWorkflows(auth, (event) =>
@@ -108,6 +118,217 @@ afterEach(async () => {
 });
 
 describe('Studio management commands', () => {
+  it('generates the frontend 24-hour session token using the first Studio key and journals metadata only', async () => {
+    const sessionToken = 'synthetic-session-token';
+    const f = await fixture(
+      async (url, options) => {
+        if (url.origin === origin) {
+          expect(url.pathname).toBe(`/v1/apps/${appId}/api-keys`);
+          return json({
+            apiKeys: [
+              { apiKey: secret, createdAt },
+              { apiKey: 'synthetic-second-key', createdAt },
+            ],
+          });
+        }
+        expect(options.method).toBe('POST');
+        expect(new Headers(options.headers).get('x-api-key')).toBe(secret);
+        const body = JSON.parse(String(options.body));
+        expect(body).toEqual({
+          expireAt: expect.any(Number),
+          modelVersion: '',
+        });
+        expect(body.expireAt).toBeGreaterThanOrEqual(
+          Math.floor(start / 1000) + 86400,
+        );
+        expect(body.expireAt).toBeLessThanOrEqual(
+          Math.floor(Date.now() / 1000) + 86400,
+        );
+        const journal = JSON.parse(
+          await f.journal(String(f.events[0]!.operationId)),
+        );
+        expect(journal).toMatchObject({
+          type: 'session-token',
+          state: 'submitting',
+          input: { appId, keyId: keyId(secret), consoleOrigin, ...body },
+        });
+        return json({ sessionToken });
+      },
+      { appId: 'app_other', apiKey: 'synthetic-cached-key' },
+    );
+    const start = Date.now();
+    const result = await f.run([
+      'apps',
+      'session-tokens',
+      'create',
+      '--app-id',
+      appId,
+    ]);
+    expect(result).toMatchObject({
+      sessionToken,
+      appId,
+      keyId: keyId(secret),
+      expireAt: expect.any(Number),
+      modelVersion: '',
+      consoleOrigin,
+    });
+    const id = String(f.events[0]!.operationId);
+    const journal = await f.journal(id);
+    expect(JSON.parse(journal).state).toBe('accepted');
+    expect(journal).not.toContain(secret);
+    expect(journal).not.toContain(sessionToken);
+    expect(JSON.stringify(f.events)).not.toContain(sessionToken);
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect((await f.storage.read()).profiles[profileKey]).toMatchObject({
+      appId: 'app_other',
+      apiKey: 'synthetic-cached-key',
+    });
+    expect(
+      f.fetcher.mock.calls.filter(([, options]) => options?.method === 'POST'),
+    ).toHaveLength(1);
+  });
+
+  it('resolves an explicitly selected session-token key across pages', async () => {
+    const f = await fixture((url, options) => {
+      if (url.origin === consoleOrigin) {
+        expect(new Headers(options.headers).get('x-api-key')).toBe(secret);
+        return json({ sessionToken: 'synthetic-session-token' });
+      }
+      if (!url.searchParams.get('pagination.pageToken'))
+        return json({
+          apiKeys: [{ apiKey: 'synthetic-other-key', createdAt }],
+          pagination: { nextPageToken: 'next' },
+        });
+      return json({ apiKeys: [{ apiKey: secret, createdAt }] });
+    });
+    expect(
+      await f.run([
+        'apps',
+        'session-tokens',
+        'create',
+        '--app-id',
+        appId,
+        '--key-id',
+        keyId(secret),
+      ]),
+    ).toMatchObject({ keyId: keyId(secret) });
+  });
+
+  it.each([undefined, keyId(secret)])(
+    'does not create or substitute a key when none matches %s',
+    async (fingerprint) => {
+      const f = await fixture(() =>
+        json({
+          apiKeys: fingerprint
+            ? [{ apiKey: 'synthetic-other-key', createdAt }]
+            : [],
+        }),
+      );
+      await expect(
+        f.studio.createSessionToken(appId, fingerprint),
+      ).rejects.toMatchObject({ code: 'APP_KEY_UNAVAILABLE' });
+      expect(f.events).toEqual([]);
+      expect(
+        f.fetcher.mock.calls.every(([, options]) => options?.method === 'GET'),
+      ).toBe(true);
+    },
+  );
+
+  it.each([200, 401, 403, 429, 503])(
+    'does not retry or expose session-token error payloads (HTTP %s)',
+    async (status) => {
+      const f = await fixture((url) => {
+        if (url.origin === origin)
+          return json({ apiKeys: [{ apiKey: secret, createdAt }] });
+        return new Response(
+          JSON.stringify({
+            sessionToken: 'synthetic-rejected-token',
+            error: { code: secret, message: secret },
+          }),
+          { status, headers: { 'x-request-id': secret } },
+        );
+      });
+      let failure: unknown;
+      try {
+        await f.studio.createSessionToken(appId);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toMatchObject({
+        code: 'SESSION_TOKEN_FAILED',
+        options: {
+          retryable: false,
+          details: {
+            operationId: expect.any(String),
+            expireAt: expect.any(Number),
+          },
+        },
+      });
+      expect(JSON.stringify(failure)).not.toContain(secret);
+      expect(JSON.stringify(failure)).not.toContain('synthetic-rejected-token');
+      expect(
+        f.fetcher.mock.calls.filter(
+          ([, options]) => options?.method === 'POST',
+        ),
+      ).toHaveLength(1);
+      const journal = JSON.parse(
+        await f.journal(String(f.events[0]!.operationId)),
+      );
+      expect(journal.state).toBe(
+        status >= 400 && status < 500 ? 'rejected' : 'submitting',
+      );
+    },
+  );
+
+  it.each(['network', 'missing-token', 'redirect'])(
+    'handles session-token %s failures without replay',
+    async (failure) => {
+      const f = await fixture((url) => {
+        if (url.origin === origin)
+          return json({ apiKeys: [{ apiKey: secret, createdAt }] });
+        if (failure === 'network') throw new Error(secret);
+        return failure === 'redirect'
+          ? new Response(null, {
+              status: 302,
+              headers: { location: 'https://unexpected.example' },
+            })
+          : json({});
+      });
+      await expect(f.studio.createSessionToken(appId)).rejects.toMatchObject({
+        code: 'SESSION_TOKEN_FAILED',
+        options: { retryable: false },
+      });
+      expect(
+        f.fetcher.mock.calls.filter(
+          ([, options]) => options?.method === 'POST',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('preserves the operation ID and exit 130 when session-token generation is interrupted', async () => {
+    const controller = new AbortController();
+    const f = await fixture(
+      (url) => {
+        if (url.origin === origin)
+          return json({ apiKeys: [{ apiKey: secret, createdAt }] });
+        controller.abort();
+        throw new Error(secret);
+      },
+      {},
+      controller.signal,
+    );
+    await expect(f.studio.createSessionToken(appId)).rejects.toMatchObject({
+      code: 'INTERRUPTED',
+      options: { exitCode: 130, details: { operationId: expect.any(String) } },
+    });
+    expect(
+      JSON.parse(await f.journal(String(f.events[0]!.operationId))).state,
+    ).toBe('submitting');
+    expect(
+      f.fetcher.mock.calls.filter(([, options]) => options?.method === 'POST'),
+    ).toHaveLength(1);
+  });
   it('lists and reads apps with sanitized metadata and no setup', async () => {
     const app = {
       appId,
@@ -442,6 +663,8 @@ describe('Studio management commands', () => {
   });
 
   it.each([
+    ['apps', 'session-tokens', 'create'],
+    ['apps', 'session-tokens', 'create', '--app-id', appId, '--key-id', secret],
     ['apps', 'create'],
     ['apps', 'keys', 'create'],
     ['apps', 'keys', 'list'],

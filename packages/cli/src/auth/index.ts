@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { CliError } from '../core/errors.js';
 import {
+  SessionTokenClient,
+  type SessionTokenInput,
+} from '../client/session-token.js';
+import {
   StudioClient,
   invalidResponse,
   object,
@@ -39,6 +43,8 @@ export interface AuthStatus {
 
 export interface StudioSession {
   profileKey: string;
+  consoleOrigin: string;
+  createSessionToken(apiKey: string, input: SessionTokenInput): Promise<string>;
   request(
     path: string,
     options?: Omit<StudioRequestOptions, 'token'>,
@@ -140,6 +146,7 @@ export class AuthManager {
   private readonly originKey: string;
   private readonly storage: AuthStorage;
   private readonly client: StudioClient;
+  private readonly sessionTokens: SessionTokenClient;
 
   constructor(options: AuthOptions) {
     this.studioOrigin = canonicalOrigin(options.studioOrigin);
@@ -151,6 +158,11 @@ export class AuthManager {
     this.storage = new AuthStorage(options.configDir);
     this.client = new StudioClient(
       this.studioOrigin,
+      options.fetch,
+      options.signal,
+    );
+    this.sessionTokens = new SessionTokenClient(
+      this.consoleOrigin,
       options.fetch,
       options.signal,
     );
@@ -304,6 +316,9 @@ export class AuthManager {
       await this.verifyIdentity(state, profile);
       return run({
         profileKey: this.profileKey(profile.userId),
+        consoleOrigin: this.consoleOrigin,
+        createSessionToken: (apiKey, input) =>
+          this.sessionTokens.create(apiKey, input),
         request: async (path, options = {}) => {
           const request = (token: string) =>
             this.client.request(path, { ...options, token });

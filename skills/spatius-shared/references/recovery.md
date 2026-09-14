@@ -20,6 +20,12 @@ These saved operations use their own `--resume`; `setup --retry-uncertain` does
 not reconcile them. A deleted selected app/key requires intentional setup before
 rendering again. Studio management and avatar listing need only Studio login.
 
+For `SESSION_TOKEN_FAILED` from `apps session-tokens create`, check the Console
+region and selected app key. An uncertain issuance may have succeeded; retain
+the operation ID and `expireAt`, and generate again only intentionally. Session
+tokens are not saved and cannot be recovered or resumed. See
+[session-token guidance](studio-management.md#session-tokens).
+
 Do not echo credentials, refresh tokens, or credential-file contents. Download
 URLs and temporary input URLs are bearer links: anyone possessing them can read
 the file until expiry. Use them only for the intended workflow; avoid putting

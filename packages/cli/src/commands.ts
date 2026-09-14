@@ -258,6 +258,24 @@ export const definitions: Definition[] = [
     run: async (a, v, c) => c.studio.deleteKey(str(v, 'appId') ?? '', a[0]!),
   },
   {
+    path: 'apps session-tokens create',
+    description:
+      'Generate a 24-hour session token using an owned Studio app key, as in the frontend.',
+    flags: [
+      studioApp,
+      {
+        flags: '--key-id <key-id>',
+        description:
+          'Full keyId from apps keys list; defaults to the first available key.',
+      },
+    ],
+    output:
+      'operationId, appId, keyId, consoleOrigin, expireAt (Unix seconds), modelVersion, and secret sessionToken. Keep stdout private.',
+    example: 'spatius apps session-tokens create --app-id app_example',
+    run: async (_, v, c) =>
+      c.studio.createSessionToken(str(v, 'appId') ?? '', str(v, 'keyId')),
+  },
+  {
     path: 'assets upload',
     description: 'Upload a local input to temporary storage.',
     output: 'Upload ID, accepted parts, status, and completed URL/expiration.',

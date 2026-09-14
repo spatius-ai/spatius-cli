@@ -1,7 +1,8 @@
 # Studio apps and keys
 
-All commands below use the Studio bearer login at `SPATIUS_STUDIO_URL`.
-They do not use Open API credentials. Inspect `spatius schema apps create`
+App and key management use the Studio bearer login at `SPATIUS_STUDIO_URL`.
+Session-token issuance additionally uses an app key at the Console origin,
+matching the Studio frontend. Inspect `spatius schema apps create`
 and `spatius schema apps keys list` for the installed contract.
 
 ```sh
@@ -29,9 +30,44 @@ do not capture that output in chat, logs, commits, issue bodies, or diagnostics.
 Creation journals and ordinary outputs never store or reveal the new key.
 Never read the credential file to retrieve keys.
 
+## Session tokens
+
+```sh
+spatius apps session-tokens create --app-id app_example
+```
+
+This explicitly generates and returns a secret `sessionToken` on stdout, with
+`operationId`, `appId`, `keyId`, `consoleOrigin`, `expireAt` (Unix seconds), and
+`modelVersion`. The lifetime is 24 hours and `modelVersion` is empty, matching
+the frontend. Keep the token in the intended private consumer; do not echo it
+in chat, diagnostics, commits, or shared logs.
+
+The CLI uses Studio login to fetch the first available app key. To select a
+particular key, supply `--key-id <full-keyId>` from `apps keys list`. Selection
+follows pagination and never substitutes another key for an explicit fingerprint.
+`APP_KEY_UNAVAILABLE` means no matching key exists. Create a key explicitly if
+needed; token generation never creates app credentials or changes local setup.
+
+Issuance calls `POST /v1/console/session-tokens` at `SPATIUS_CONSOLE_URL` with
+only `X-Api-Key` authentication. The Studio bearer token stays at the Studio
+origin. The frontend selects Console by region; configure `SPATIUS_CONSOLE_URL`
+to the intended region before login and subsequent CLI commands. CLI profiles
+are scoped by both Studio and Console origins, so changing the region can
+require login again. Redirects are rejected. This is the frontend's Console
+session endpoint, not a `/v1/open` route or Studio CLI login token exchange.
+
+An operation record containing the resolved key fingerprint and expiry is saved
+before one POST. Neither the API key nor session token is saved in that record.
+There is no `--resume` for session tokens: a lost stdout/response cannot recover
+the issued token. On `SESSION_TOKEN_FAILED` or interruption, inspect the returned
+operation ID and expiry. A token may already have been issued until `expireAt`;
+do not automatically retry. Generate another only when a new issuance is intended.
+For a Console rejection, check the selected key and configured region/access;
+do not confuse Console key authentication with the Studio bearer login.
+
 ## Creation recovery
 
-Both creation commands persist their operation ID and resolved name/app ID before
+App and key creation commands persist their operation ID and resolved name/app ID before
 one POST. Retain `operationId` from progress, result, or error output. Use
 `apps create --resume <operation-id>` or `apps keys create --resume <operation-id>`
 without new input to inspect the saved outcome. An accepted creation returns the

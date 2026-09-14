@@ -1,6 +1,6 @@
 ---
 name: spatius-shared
-description: Set up Spatius CLI authentication, manage Studio apps and API keys, inspect command schemas, and recover account access for avatar or video workflows. Use when preparing Spatius CLI, managing app credentials, or resolving authentication and setup errors.
+description: Set up Spatius CLI authentication, manage Studio apps and API keys, generate session tokens, inspect command schemas, and recover account access for avatar or video workflows. Use when preparing Spatius CLI, managing app credentials or session tokens, or resolving authentication and setup errors.
 license: MIT
 ---
 
@@ -59,6 +59,13 @@ spatius apps keys list --app-id app_example
 Replace `app_example` with an owned app ID. Key listings return a non-secret
 `keyId` fingerprint by default. Keep raw keys out of chat and diagnostics;
 use `--show-secrets` only when explicitly needed for private credential delivery.
+
+For a frontend-style 24-hour session token, use
+`spatius apps session-tokens create --app-id <id>`. This command intentionally
+returns a secret `sessionToken` on stdout; send it only to the intended private
+destination. It retrieves an existing key through Studio and generates the token
+at the configured Console origin. Read [Studio management](references/studio-management.md)
+for key selection, region configuration, and lost-response recovery.
 
 Except for the human-only `install` command, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
 Progress and structured failures go to stderr. Inspect the exit code and error

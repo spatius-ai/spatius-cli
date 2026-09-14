@@ -78,7 +78,7 @@ function safeKey(raw: unknown, reveal = false) {
   };
 }
 
-/** Studio frontend routes, authenticated exclusively with the Studio login. */
+/** Studio management plus the frontend's Console session-token flow. */
 export class StudioWorkflows {
   constructor(
     private readonly auth: AuthManager,
@@ -205,6 +205,86 @@ export class StudioWorkflows {
   }
   createKey(options: CreationOptions) {
     return this.create('studio-key', options);
+  }
+
+  async createSessionToken(id: string, fingerprint?: string) {
+    appId(id);
+    if (fingerprint !== undefined && !/^[0-9a-f]{64}$/.test(fingerprint))
+      argument('Use the full keyId returned by apps keys list.');
+    return this.auth.withStudioSession(async (session) => {
+      const key = await this.findKey(session, id, fingerprint);
+      if (!key)
+        throw new CliError(
+          'APP_KEY_UNAVAILABLE',
+          'No matching API key is available for this app.',
+          {
+            recovery:
+              'Run spatius apps keys list --app-id <APP_ID>. Create a key explicitly if the app has none; session-token generation never creates a key.',
+          },
+        );
+      const secret = string(key, 'apiKey');
+      const operationId = randomUUID();
+      const input = {
+        expireAt: Math.floor(Date.now() / 1000) + 24 * 3600,
+        modelVersion: '',
+      };
+      const metadata = {
+        appId: id,
+        keyId: keyId(secret),
+        consoleOrigin: session.consoleOrigin,
+        ...input,
+      };
+      const journal = {
+        version: 1,
+        type: 'session-token',
+        id: operationId,
+        input: metadata,
+        state: 'submitting',
+      };
+      const store = new StateStore(
+        this.auth.stateDirectory(),
+        session.profileKey,
+      );
+      await store.write(operationId, journal);
+      this.progress({
+        event: 'operation_saved',
+        operationId,
+        type: 'session-token',
+      });
+      try {
+        const sessionToken = await session.createSessionToken(secret, input);
+        journal.state = 'accepted';
+        await store.write(operationId, journal);
+        return { operationId, ...metadata, sessionToken };
+      } catch (error) {
+        const failure = error instanceof CliError ? error : undefined;
+        const status = failure?.options.status;
+        if (
+          status !== undefined &&
+          status >= 400 &&
+          status < 500 &&
+          status !== 408
+        ) {
+          journal.state = 'rejected';
+          await store.write(operationId, journal);
+        }
+        throw new CliError(
+          failure?.code ?? 'SESSION_TOKEN_FAILED',
+          failure?.message ??
+            'Session-token generation did not complete safely.',
+          {
+            status,
+            exitCode: failure?.options.exitCode,
+            retryable: false,
+            details: { operationId, ...metadata },
+            recovery:
+              journal.state === 'rejected'
+                ? 'Verify the app key and configured Console region/access before intentionally generating another token.'
+                : 'A token may have been issued until expireAt. Tokens are not saved and cannot be resumed or recovered. Generate another token only when a new issuance is intended.',
+          },
+        );
+      }
+    });
   }
 
   private async create(type: Journal['type'], options: CreationOptions) {
@@ -341,7 +421,7 @@ export class StudioWorkflows {
   private async findKey(
     session: StudioSession,
     id: string,
-    fingerprint: string,
+    fingerprint?: string,
   ): Promise<ObjectValue | undefined> {
     const seen = new Set<string>();
     let token = '';
@@ -353,7 +433,9 @@ export class StudioWorkflows {
         'apiKeys',
       );
       const match = result.items.find(
-        (key) => keyId(string(key, 'apiKey')) === fingerprint,
+        (key) =>
+          fingerprint === undefined ||
+          keyId(string(key, 'apiKey')) === fingerprint,
       );
       if (match) return match;
       token = result.pagination.nextPageToken;
