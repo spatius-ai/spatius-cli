@@ -42,12 +42,21 @@ export class StudioClient {
   constructor(
     private readonly origin: string,
     private readonly fetcher: typeof globalThis.fetch = globalThis.fetch,
+    private readonly signal?: AbortSignal,
   ) {}
 
   async request(
     path: string,
     options: { token?: string; body?: unknown; signal?: AbortSignal } = {},
   ): Promise<ObjectValue> {
+    const signal =
+      options.signal && this.signal
+        ? AbortSignal.any([options.signal, this.signal])
+        : (options.signal ?? this.signal);
+    if (signal?.aborted)
+      throw new CliError('INTERRUPTED', 'Studio setup was interrupted.', {
+        exitCode: 130,
+      });
     const method = options.body === undefined ? 'GET' : 'POST';
     let response: Response;
     try {
@@ -66,15 +75,19 @@ export class StudioClient {
           ? {}
           : { body: JSON.stringify(options.body) }),
         redirect: 'error',
-        signal: options.signal
-          ? AbortSignal.any([options.signal, AbortSignal.timeout(30_000)])
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
           : AbortSignal.timeout(30_000),
       });
     } catch {
-      if (options.signal?.aborted)
-        throw new CliError('INTERRUPTED', 'Login was interrupted.', {
-          exitCode: 130,
-        });
+      if (signal?.aborted)
+        throw new CliError(
+          'INTERRUPTED',
+          'Studio authorization or setup was interrupted.',
+          {
+            exitCode: 130,
+          },
+        );
       throw new CliError(
         'STUDIO_UNAVAILABLE',
         'The Studio request could not be completed.',

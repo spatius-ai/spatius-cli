@@ -1,6 +1,7 @@
 # Third-party notices
 
-The Studio loopback authentication implementation adapts the protocol and code
+The Studio loopback authentication implementation and interactive installer
+(theme, presence animation, prompt conventions, and terminal tests) adapt code
 from [create-spatius-app](https://github.com/spatius-ai/create-spatius-app).
 
 MIT License

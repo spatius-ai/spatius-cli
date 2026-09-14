@@ -618,3 +618,58 @@ describe('app bootstrap', () => {
     );
   });
 });
+
+describe('installer Studio cancellation', () => {
+  it('does not make a request when its shared signal is already aborted', async () => {
+    const configDir = await directory();
+    await seed(configDir);
+    const controller = new AbortController();
+    controller.abort();
+    const fetcher = vi.fn<typeof fetch>();
+    const auth = new AuthManager({
+      studioOrigin,
+      consoleOrigin,
+      mediaOrigin,
+      configDir,
+      fetch: fetcher,
+      signal: controller.signal,
+    });
+    await expect(auth.status()).rejects.toMatchObject({
+      code: 'INTERRUPTED',
+      options: { exitCode: 130 },
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('cancels app creation without replaying it and retains pending state for reconciliation', async () => {
+    const configDir = await directory();
+    await seed(configDir);
+    const controller = new AbortController();
+    const posts: string[] = [];
+    const fetcher = client(async (url, options) => {
+      if (options.method !== 'POST') return json({ apps: [] });
+      posts.push(url.pathname);
+      const storage = await new AuthStorage(configDir).read();
+      expect(storage.profiles[profileKey]?.pendingApp).toBe(true);
+      controller.abort();
+      expect(options.signal?.aborted).toBe(true);
+      throw new DOMException('Aborted', 'AbortError');
+    });
+    const auth = new AuthManager({
+      studioOrigin,
+      consoleOrigin,
+      mediaOrigin,
+      configDir,
+      fetch: fetcher,
+      signal: controller.signal,
+    });
+    await expect(auth.setup()).rejects.toMatchObject({
+      code: 'INTERRUPTED',
+      options: { exitCode: 130 },
+    });
+    expect(posts).toEqual(['/v1/apps']);
+    expect(
+      (await new AuthStorage(configDir).read()).profiles[profileKey]
+        ?.pendingApp,
+    ).toBe(true);
+  });
+});

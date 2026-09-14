@@ -1,5 +1,37 @@
 # Avatar and video workflows
 
+## Interactive installation
+
+Run `npx @spatius/cli@beta install` in a local terminal with Node.js 22+, npm,
+and npx. The wizard defaults to installing the global CLI and all three
+bundled skills, then offers Studio login and automatic app/key setup. Each
+component can be skipped, including when rerunning after partial completion.
+
+The global CLI is installed with npm at the exact version running the wizard.
+The skills CLI reads that version's bundled skills and asks which agents,
+scope (current project or global), and installation method to use. Run the
+wizard from the intended project if choosing project scope. The skills CLI
+prints its own results; returning from that step can also mean it was skipped
+or cancelled. Its installed files do not depend on keeping the npx cache.
+
+`install` uses human-readable output and requires interactive stdin/stdout
+outside CI. `--json` is rejected. Help and `spatius schema install` work without
+a terminal or Studio login. Scripts should use `npm install -g @spatius/cli@beta`,
+`npx skills add spatius-ai/spatius-cli --skill spatius-shared spatius-avatar spatius-video`,
+`spatius auth login`, and `spatius setup` separately.
+
+If npm fails, completed steps remain installed. Resolve npm registry or
+permission issues and rerun, skipping completed components. Use a user-owned
+npm prefix/cache or Node version manager for permission errors. The wizard
+does not invoke sudo or edit shell configuration. For PATH warnings, add the
+reported bin directory or put it before the conflicting executable and reopen
+the terminal; use the printed versioned npx commands in the meantime.
+
+Ctrl+C exits 130 and stops local work without rolling back completed steps.
+Studio failures retain the normal login and uncertain-creation recovery rules.
+The installer never automatically retries app/key creation with
+`--retry-uncertain`. Studio login/setup does not grant Avatar or Video API approval.
+
 ## Authentication and output
 
 Run `spatius auth login`, approve in a browser on the same machine, then run
@@ -22,7 +54,7 @@ The web origin must match the Studio backend's configured frontend URL.
 Credential-bearing API requests reject redirects; the browser URL must match
 the configured web origin and the exact authorization request path.
 
-Commands return `{ "schemaVersion": 1, "ok": true, "data": ... }` on stdout.
+Except for the interactive `install` command, commands return `{ "schemaVersion": 1, "ok": true, "data": ... }` on stdout.
 Errors use `ok: false` and `error.code/message/retryable/recovery` on stderr.
 Progress is also written to stderr. Help and version are plain text.
 

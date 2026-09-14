@@ -22,3 +22,23 @@ them in commits, issue bodies, or diagnostics.
 Logout clears local credentials and attempts refresh-token revocation. The
 existing Studio backend does not immediately invalidate already issued access
 tokens. Never claim that logout has remotely revoked every credential.
+
+## Interactive installation
+
+`npx @spatius/cli@beta install` is for a user in a local terminal. For
+`INTERACTIVE_REQUIRED` or an `install --json` rejection, use the separate npm,
+skills, authentication, and setup commands rather than retrying prompts in CI.
+
+Completed steps survive installer failure or cancellation. Rerun the installer
+and skip completed components. A skills subprocess can exit zero after the
+user cancels: its own results are authoritative. Bundled skills match the
+installer version; rerun that version to reinstall or update them together.
+
+For npm permission errors, use a user-owned prefix/cache or a Node version
+manager. Do not automatically elevate privileges or modify shell startup files.
+For PATH warnings, follow the reported bin-directory and executable paths,
+then reopen the terminal. Until resolved, use `npx @spatius/cli@<version>`
+in place of `spatius`.
+
+Studio login and setup errors retain their existing recovery rules above.
+The installer never opts into `--retry-uncertain`.
