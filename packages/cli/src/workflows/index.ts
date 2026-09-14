@@ -92,7 +92,7 @@ interface CreateJournal {
 }
 /** Milliseconds between job status polls in `waitJob`, per job kind. */
 const JOB_POLL_INTERVALS: Record<'avatar' | 'video', number> = {
-  avatar: 15_000,
+  avatar: 60_000,
   video: 10_000,
 };
 
