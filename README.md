@@ -12,7 +12,7 @@ The CLI is experimental.
 After the npm release:
 
 ```sh
-npm install -g @spatius/cli@beta
+npm install -g @spatius/cli
 spatius auth login
 spatius setup
 ```
