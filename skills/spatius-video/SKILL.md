@@ -32,7 +32,7 @@ spatius videos wait 00000000-0000-4000-8000-000000000001 --timeout 600
 spatius videos download 00000000-0000-4000-8000-000000000001 --output ./video.mp4
 ```
 
-Replace the example job UUID with the returned one. Waiting polls every 15 seconds;
+Replace the example job UUID with the returned one. Waiting polls every 10 seconds;
 exit 3 means the job is still pending. Download obtains a fresh link and writes
 the MP4 atomically. It refuses to replace an existing file unless `--force` is
 explicitly supplied.
