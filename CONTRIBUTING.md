@@ -58,3 +58,17 @@ in progress. Publish one release at a time. The
 [deployment guide](docs/deployment.md) covers one-time Cloudflare/npm setup,
 release commands, and recovery after partial failure. `pnpm check` does not
 publish packages, deploy services, or start paid generation.
+
+## Installer development
+
+The interactive `install` command loads its UI lazily. Keep process execution
+and npm/skills mechanics separate from prompt orchestration; tests inject
+services and auth instead of installing global packages or using live accounts.
+The installer uses matching packaged skills, so test the installed tarball as
+well as workspace execution. Its human-output exception is declared in command
+schema metadata; existing commands retain their JSON contracts.
+
+When changing terminal presentation, review in a PTY against create-spatius-app:
+normal animation, narrow terminals, NO_COLOR, resize, handoff to skills, and
+Ctrl+C. Use a local mock-service harness; never run live npm global installation
+or Studio setup as a test side effect. Run `pnpm check` before handoff.

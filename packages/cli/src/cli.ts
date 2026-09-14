@@ -21,6 +21,7 @@ const emit = (data: unknown) =>
     `${JSON.stringify({ schemaVersion: 1, ok: true, data })}\n`,
   );
 let context: Context | undefined;
+let humanOutput = false;
 const program = buildProgram(
   () => {
     if (!context) {
@@ -42,6 +43,12 @@ const program = buildProgram(
   },
   emit,
   pkg.version,
+  {
+    signal: controller.signal,
+    onHumanOutput: () => {
+      humanOutput = true;
+    },
+  },
 );
 program.configureOutput({ writeErr: () => undefined });
 try {
@@ -58,9 +65,14 @@ try {
             recovery: 'Run spatius --help or spatius schema.',
           })
         : asCliError(error);
-    process.stderr.write(
-      `${JSON.stringify({ schemaVersion: 1, ok: false, error: { code: e.code, message: e.message, retryable: e.options.retryable ?? false, recovery: e.options.recovery, details: e.options.details } })}\n`,
-    );
+    if (humanOutput)
+      process.stderr.write(
+        `${e.code === 'INTERRUPTED' ? 'Cancelled' : 'Error'} [${e.code}]: ${e.message}\n${e.options.recovery ? `Recovery: ${e.options.recovery}\n` : ''}`,
+      );
+    else
+      process.stderr.write(
+        `${JSON.stringify({ schemaVersion: 1, ok: false, error: { code: e.code, message: e.message, retryable: e.options.retryable ?? false, recovery: e.options.recovery, details: e.options.details } })}\n`,
+      );
     process.exitCode = e.options.exitCode ?? 1;
   }
 } finally {

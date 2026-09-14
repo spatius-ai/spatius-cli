@@ -9,6 +9,14 @@ license: MIT
 Use the installed `spatius` executable. If installation is needed, the prerelease
 package is `@spatius/cli@beta` (`npm install -g @spatius/cli@beta`); stable releases
 use `@spatius/cli`. The executable name remains `spatius`.
+For human onboarding, `npx @spatius/cli@beta install` opens an interactive
+installer for the global CLI, all three bundled skills, and optional Studio
+login/setup. It requires a local terminal outside CI and does not support
+`--json`. Agent scripts should use the individual commands below; do not run
+the installer expecting structured output or unattended prompts. The skills
+installer owns agent and scope selection. A completed handoff is not proof
+that skills were installed; check its results.
+
 Read `spatius --version` and `spatius schema` to discover the installed contract.
 The CLI requires Node.js 22+. The npm package includes matching skills under
 `skills/`; prefer those over default-branch skills when versions differ.
@@ -36,7 +44,7 @@ Setup reuses an owned `Spatius CLI` app and key. If selection is required, use
 to obtain keys. Login does not grant Avatar or Video API approval; report a 403
 as an account/permission issue instead of repeatedly logging in.
 
-Success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
+Except for the human-only `install` command, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
 Progress and structured failures go to stderr. Inspect the exit code and error
 `code`, `retryable`, and `recovery`; avoid parsing decorative human text. Exit 3
 means a wait deadline, and does not cancel the remote job.

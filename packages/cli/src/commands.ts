@@ -19,7 +19,8 @@ interface Definition {
   flags?: Flag[];
   output: string;
   example: string;
-  run: (args: string[], values: Values, context: Context) => Promise<unknown>;
+  interactive?: boolean;
+  run?: (args: string[], values: Values, context: Context) => Promise<unknown>;
 }
 export interface Context {
   auth: AuthManager;
@@ -88,6 +89,15 @@ function settings(v: Values): VideoSettings {
 }
 
 export const definitions: Definition[] = [
+  {
+    path: 'install',
+    description:
+      'Interactively install the CLI, agent skills, and Studio setup.',
+    output:
+      'Human-readable installation progress and summary; requires a terminal.',
+    example: 'spatius install',
+    interactive: true,
+  },
   {
     path: 'auth login',
     description: 'Authorize this local CLI through Spatius Studio.',
@@ -423,13 +433,16 @@ export function commandSchema(path?: string) {
       130: 'interrupted',
     },
     commands: found.map(
-      ({ path, description, args, flags, output, example }) => ({
+      ({ path, description, args, flags, output, example, interactive }) => ({
         path,
         description,
         arguments: args ?? [],
         options: flags ?? [],
         output,
         examples: [example],
+        ...(interactive
+          ? { interactive: true, outputMode: 'human', supportsJson: false }
+          : {}),
       }),
     ),
   };
@@ -439,6 +452,7 @@ export function buildProgram(
   getContext: () => Context,
   emit: (data: unknown) => void,
   version: string,
+  presentation: { signal?: AbortSignal; onHumanOutput?: () => void } = {},
 ) {
   const root = new Command()
     .name('spatius')
@@ -480,6 +494,17 @@ export function buildProgram(
       cmd.addOption(option);
     }
     cmd.action(async (...args: unknown[]) => {
+      if (def.interactive) {
+        const json = root.opts().json === true;
+        if (!json) presentation.onHumanOutput?.();
+        const { runInstaller } = await import('./install/index.js');
+        await runInstaller({
+          version,
+          json,
+          signal: presentation.signal ?? new AbortController().signal,
+        });
+        return;
+      }
       const count = def.args?.length ?? 0;
       const values = args[count] as Values;
       if (typeof values.timeout === 'number' && values.timeout <= 0)
@@ -487,7 +512,7 @@ export function buildProgram(
           exitCode: 2,
         });
       emit(
-        await def.run(args.slice(0, count) as string[], values, getContext()),
+        await def.run!(args.slice(0, count) as string[], values, getContext()),
       );
     });
   }

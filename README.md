@@ -1,5 +1,8 @@
 # Spatius CLI
 
+> [!NOTE]
+> This project is still in beta.
+
 Create avatars and render videos from a coding agent or terminal. The CLI handles
 Studio login, app credentials, temporary uploads, polling, and MP4 downloads.
 
@@ -9,15 +12,21 @@ The CLI is experimental.
 
 ## Get started
 
-After the npm release:
+```sh
+npx @spatius/cli@beta install
+```
+
+Follow the terminal prompts to install the CLI and agent skills, then optionally
+log in and set up Spatius Studio. Approve login in your local browser. You can
+skip completed steps when rerunning the installer.
+
+For manual installation or scripts:
 
 ```sh
-npm install -g @spatius/cli
+npm install -g @spatius/cli@beta
 spatius auth login
 spatius setup
 ```
-
-Approve login in your local browser.
 
 ## Use with coding agents
 

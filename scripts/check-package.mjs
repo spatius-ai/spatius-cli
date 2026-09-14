@@ -5,11 +5,12 @@ import {
   mkdtemp,
   rm,
   readFile,
+  realpath,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { integrity, PACKAGE_NAME } from './release.mjs';
 
@@ -105,6 +106,53 @@ try {
     stdio: 'pipe',
     shell: process.platform === 'win32',
   });
+  execFileSync(process.execPath, [executable, 'install', '--help'], {
+    cwd: staging,
+    stdio: 'pipe',
+  });
+  const installSchema = JSON.parse(
+    execFileSync(process.execPath, [executable, 'schema', 'install'], {
+      cwd: staging,
+      encoding: 'utf8',
+    }),
+  );
+  if (
+    !installSchema.data.commands[0].interactive ||
+    installSchema.data.commands[0].supportsJson !== false
+  )
+    throw new Error(
+      'Packaged installer schema is missing its human-output contract.',
+    );
+  // Import from the installed artifact, not the workspace: validates runtime asset paths.
+  const assets = await import(
+    pathToFileURL(join(installed, 'dist/install-assets.js')).href
+  );
+  if (
+    (await realpath(assets.bundledSkillsDirectory())) !==
+    (await realpath(join(installed, 'skills')))
+  )
+    throw new Error(
+      'Packaged installer does not resolve its own bundled skills.',
+    );
+  for (const name of assets.skillNames)
+    await readFile(join(assets.bundledSkillsDirectory(), name, 'SKILL.md'));
+  // Loading the lazy installer checks all declared runtime dependencies, but rejects before effects.
+  try {
+    execFileSync(process.execPath, [executable, 'install', '--json'], {
+      cwd: staging,
+      stdio: 'pipe',
+    });
+    throw new Error('Packaged installer unexpectedly accepted JSON mode.');
+  } catch (error) {
+    if (
+      error.status !== 2 ||
+      JSON.parse(error.stderr.toString()).error?.code !== 'INVALID_ARGUMENT'
+    )
+      throw new Error(
+        'Packaged installer runtime/rejection smoke test failed.',
+        { cause: error },
+      );
+  }
   // Agent guidance must come from this checkout, never a stale copied package directory.
   for (const path of paths) {
     if (

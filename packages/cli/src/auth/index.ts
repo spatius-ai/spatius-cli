@@ -17,6 +17,7 @@ export interface AuthOptions {
   mediaOrigin: string;
   configDir?: string;
   fetch?: typeof globalThis.fetch;
+  signal?: AbortSignal;
 }
 
 export interface AppSummary {
@@ -138,7 +139,11 @@ export class AuthManager {
     this.consoleOrigin = canonicalOrigin(options.consoleOrigin);
     this.originKey = hash(`${this.studioOrigin}\n${this.consoleOrigin}`);
     this.storage = new AuthStorage(options.configDir);
-    this.client = new StudioClient(this.studioOrigin, options.fetch);
+    this.client = new StudioClient(
+      this.studioOrigin,
+      options.fetch,
+      options.signal,
+    );
   }
 
   stateDirectory(): string {
