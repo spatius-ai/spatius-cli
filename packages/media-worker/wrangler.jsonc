@@ -75,6 +75,16 @@
     },
     "production": {
       "name": "spatius-cli-media",
+      "workers_dev": false,
+      "routes": [
+        {
+          "pattern": "cli-media.spatius.ai",
+          "custom_domain": true,
+        },
+      ],
+      "secrets": {
+        "required": ["SIGNING_KEYS"],
+      },
       "vars": {
         "STUDIO_API_URL": "https://api.studio.spatius.ai",
         "PUBLIC_URL": "https://cli-media.spatius.ai",

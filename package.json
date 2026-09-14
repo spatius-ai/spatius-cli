@@ -4,14 +4,15 @@
   "type": "module",
   "packageManager": "pnpm@12.3.4",
   "scripts": {
-    "build": "pnpm --filter spatius-cli build && pnpm --filter @spatius/media-worker build",
+    "build": "pnpm --filter @spatius/cli build && pnpm --filter @spatius/media-worker build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && pnpm release:test",
+    "release:test": "node --test scripts/test/*.test.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "skills:check": "pnpm --filter spatius-cli build && node scripts/check-skills.mjs",
-    "package:check": "pnpm --filter spatius-cli build && node scripts/check-package.mjs",
+    "skills:check": "pnpm --filter @spatius/cli build && node scripts/check-skills.mjs",
+    "package:check": "pnpm --filter @spatius/cli build && node scripts/check-package.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm skills:check && pnpm package:check && pnpm --filter @spatius/media-worker build"
   },
   "devDependencies": {

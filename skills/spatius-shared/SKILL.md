@@ -6,9 +6,12 @@ license: MIT
 
 # Spatius setup and shared behavior
 
-Use the installed `spatius` executable, or the published `spatius-cli` npm package.
+Use the installed `spatius` executable. If installation is needed, the prerelease
+package is `@spatius/cli@beta` (`npm install -g @spatius/cli@beta`); stable releases
+use `@spatius/cli`. The executable name remains `spatius`.
 Read `spatius --version` and `spatius schema` to discover the installed contract.
-The CLI requires Node.js 22+. Skills and CLI versions should match.
+The CLI requires Node.js 22+. The npm package includes matching skills under
+`skills/`; prefer those over default-branch skills when versions differ.
 
 ```sh
 spatius auth status

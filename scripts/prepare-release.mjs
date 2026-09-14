@@ -1,0 +1,52 @@
+import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import {
+  PACKAGE_NAME,
+  requireUnpublished,
+  validateCheckout,
+  validateRelease,
+} from './release.mjs';
+
+try {
+  if (
+    process.env.GITHUB_EVENT_NAME !== 'release' ||
+    !process.env.GITHUB_EVENT_PATH
+  )
+    throw new Error('This command requires a GitHub release event.');
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const release = validateRelease(
+    JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')),
+  );
+  validateCheckout(root, release.tag, process.env.GITHUB_SHA);
+  const manifestPath = join(root, 'packages/cli/package.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  if (manifest.name !== PACKAGE_NAME)
+    throw new Error('The CLI manifest has an unexpected package name.');
+  await requireUnpublished(release.version);
+  manifest.version = release.version;
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  if (process.env.GITHUB_OUTPUT)
+    await appendFile(
+      process.env.GITHUB_OUTPUT,
+      'version=' +
+        release.version +
+        '\ndist_tag=' +
+        release.distTag +
+        '\ntag=' +
+        release.tag +
+        '\n',
+    );
+  console.log(
+    'Validated ' +
+      PACKAGE_NAME +
+      '@' +
+      release.version +
+      ' for ' +
+      release.distTag +
+      '.',
+  );
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+}
