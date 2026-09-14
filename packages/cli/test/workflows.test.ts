@@ -371,6 +371,56 @@ describe('creation recovery', () => {
       }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
+  it('sends size and fit defaults without a background but omits them with one unless set', async () => {
+    const send = vi.fn<typeof fetch>();
+    const background = 'https://source.example.test/background.png';
+    type DryRun = { body: { video: Record<string, unknown> } };
+    const plain = (await workflows(send).createVideo({
+      avatarId: AVATAR_ID,
+      audio: audioUrl,
+      dryRun: true,
+    })) as DryRun;
+    expect(plain.body.video).toMatchObject({
+      width: 1024,
+      height: 1024,
+      fit: 'crop',
+      backgroundFit: 'cover',
+    });
+    const withBackground = (await workflows(send).createVideo({
+      avatarId: AVATAR_ID,
+      audio: audioUrl,
+      background,
+      dryRun: true,
+    })) as DryRun;
+    expect(withBackground.body.video).toEqual({
+      backgroundColor: '#000000',
+      backgroundFit: 'cover',
+      leadInSeconds: 0,
+      leadOutSeconds: 0,
+    });
+    const explicit = (await workflows(send).createVideo({
+      avatarId: AVATAR_ID,
+      audio: audioUrl,
+      background,
+      video: { width: 1920, height: 1080, fit: 'contain' },
+      dryRun: true,
+    })) as DryRun;
+    expect(explicit.body.video).toMatchObject({
+      width: 1920,
+      height: 1080,
+      fit: 'contain',
+    });
+    await expect(
+      workflows(send).createVideo({
+        avatarId: AVATAR_ID,
+        audio: audioUrl,
+        background,
+        video: { width: 101 },
+        dryRun: true,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(send).not.toHaveBeenCalled();
+  });
 });
 
 describe('temporary uploads', () => {
