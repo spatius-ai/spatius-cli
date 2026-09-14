@@ -954,9 +954,6 @@ export class Workflows {
       `/avatars/${identifier(id, 'Avatar ID')}`,
     );
   }
-  listAvatars(options: ListOptions = {}) {
-    return this.consoleRequest<unknown>(`/avatars${this.query(options)}`);
-  }
   getJob(kind: 'avatar' | 'video', id: string) {
     return this.consoleRequest<JobDetail>(
       `/${kind}-jobs/${identifier(id, 'Job ID')}`,

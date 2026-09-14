@@ -3,9 +3,11 @@
 > [!NOTE]
 > This project is still in beta.
 
-Create avatars and render videos from a coding agent or terminal.
+Manage Studio apps and API keys, browse public/custom avatars, and create avatars
+and videos from a coding agent or terminal.
 
-Requires Node.js 22+, a Spatius Studio account, and Avatar & Video API access.
+Requires Node.js 22+ and a Spatius Studio account. Avatar creation, detail/jobs,
+and video workflows additionally require Avatar & Video API access.
 Avatar creation uses your existing Avatar Creations balance.
 
 ## Install

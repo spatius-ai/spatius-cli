@@ -2,6 +2,7 @@
 import { CommanderError } from 'commander';
 import { AuthManager } from './auth/index.js';
 import { Workflows } from './workflows/index.js';
+import { StudioWorkflows } from './workflows/studio.js';
 import { buildProgram, type Context } from './commands.js';
 import { readConfig } from './core/config.js';
 import { asCliError, CliError } from './core/errors.js';
@@ -26,9 +27,10 @@ const program = buildProgram(
   () => {
     if (!context) {
       const config = readConfig();
-      const auth = new AuthManager(config);
+      const auth = new AuthManager({ ...config, signal: controller.signal });
       context = {
         auth,
+        studio: new StudioWorkflows(auth, progress),
         workflows: new Workflows({
           ...config,
           auth,

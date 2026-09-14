@@ -43,12 +43,12 @@ The Studio API and browser approval page have separate origins. Environment
 settings are optional for production; configure both origins explicitly when
 using a development or staging Studio deployment.
 
-| Environment variable     | Default                         | Purpose                                         |
-| ------------------------ | ------------------------------- | ----------------------------------------------- |
-| `SPATIUS_STUDIO_URL`     | `https://api.studio.spatius.ai` | Login/token, identity, and app/key API requests |
-| `SPATIUS_STUDIO_WEB_URL` | `https://app.spatius.ai`        | Expected browser approval origin                |
-| `SPATIUS_CONSOLE_URL`    | `https://console.spatius.ai`    | Avatar and Video Open APIs                      |
-| `SPATIUS_MEDIA_URL`      | `https://cli-media.spatius.ai`  | Temporary uploads and input links               |
+| Environment variable     | Default                         | Purpose                                                                   |
+| ------------------------ | ------------------------------- | ------------------------------------------------------------------------- |
+| `SPATIUS_STUDIO_URL`     | `https://api.studio.spatius.ai` | Login/token, identity, app/key management, and public/custom avatar lists |
+| `SPATIUS_STUDIO_WEB_URL` | `https://app.spatius.ai`        | Expected browser approval origin                                          |
+| `SPATIUS_CONSOLE_URL`    | `https://console.spatius.ai`    | Avatar/Video Open APIs and frontend-style session-token issuance          |
+| `SPATIUS_MEDIA_URL`      | `https://cli-media.spatius.ai`  | Temporary uploads and input links                                         |
 
 The web origin must match the Studio backend's configured frontend URL.
 Credential-bearing API requests reject redirects; the browser URL must match
@@ -65,6 +65,88 @@ Progress is also written to stderr. Help and version are plain text.
 | 2         | Invalid command arguments                            |
 | 3         | Waiting reached its deadline; the job remains active |
 | 130       | Interrupted locally; no remote job is cancelled      |
+
+## Studio management and avatar discovery
+
+App/key management and avatar listing use Studio login only; they need neither app setup nor Open API
+enablement. They match the Studio frontend's `/v1/apps`, app `/api-keys`,
+`/v2/console/public-avatars`, and `/v2/console/custom-avatars` routes.
+
+```sh
+spatius apps list
+spatius apps create --name "My app"
+spatius apps get app_example
+spatius apps keys create --app-id app_example
+spatius apps keys list --app-id app_example --page-size 20
+spatius avatars list --type public --page-size 20
+spatius avatars list --type custom --status success,generating --page-size 20
+```
+
+Substitute an actual app ID. App creation and key creation are separate and do
+not change the CLI's selected credentials. Use `spatius setup --app-id <id>`
+when you want to select an app for rendering; setup may create a key if none exists.
+`apps list` continues returning a sanitized array across all pages. Key and
+avatar lists return one page and `pagination.nextPageToken`; pass that token
+with `--page-token`, keeping page size and filters unchanged.
+
+API keys are hidden by default. Key create/list returns a full SHA-256 `keyId`
+for selection. `--show-secrets` explicitly reveals raw keys on stdout for a
+private destination; never copy the output into logs, commits, or chat.
+`spatius apps keys delete <keyId> --app-id <id>` resolves the fingerprint
+privately and deletes the key. `spatius apps delete <id>` deletes the app and
+its keys. Both perform deletion directly and clear matching local credentials
+before submission; use setup intentionally afterward if rendering is needed.
+
+App/key creation saves `operationId` and resolved input before a single POST.
+Use `apps create --resume <operation-id>` or `apps keys create --resume <operation-id>`
+without new input to inspect the saved outcome. Accepted operations return the
+saved result; key resume with `--show-secrets` retrieves the existing key by
+fingerprint. An uncertain or rejected operation is never resubmitted. On
+`STUDIO_CREATION_UNCERTAIN`, inspect app/key lists and reconcile before choosing
+a new creation. Names are not unique. `setup --retry-uncertain` does not apply
+to these operations. Journals contain key fingerprints, never raw keys.
+
+**Listing behavior change:** `avatars list` now defaults to Studio's `custom`
+collection instead of the Open API account list. It returns `type`, `avatars`,
+pagination, and custom `counts` when available. Custom listings include pending
+and failed applications; filters are `success`, `generating`, and `failure`.
+Public listings use `--type public` and reject status filters. Public items use
+`id`; successful custom items supply `avatarId` for rendering. A custom display
+`id` or `applyId` can identify a pending application and must not be treated as
+a renderable avatar ID. Listing does not grant render permission.
+`avatars get`, avatar creation/jobs, and video commands continue using Open APIs.
+
+## Generate a session token
+
+```sh
+spatius apps session-tokens create --app-id app_example
+```
+
+The command matches the Studio app detail page: it retrieves an existing key
+with Studio login, then sends one `POST /v1/console/session-tokens` using
+`X-Api-Key` at `SPATIUS_CONSOLE_URL`. It requests a 24-hour lifetime and an empty
+`modelVersion`. No app setup is required and no new app/key is created.
+By default it selects the first available key; use `--key-id <full-keyId>`
+from `apps keys list` for explicit selection across pages.
+
+The result contains the secret `sessionToken`, `expireAt` in Unix seconds,
+`operationId`, `appId`, `keyId`, `consoleOrigin`, and `modelVersion`.
+Generation intentionally returns the token without a separate reveal flag;
+keep stdout private and pass it only to its intended consumer.
+The API key is never included in the result, and neither secret is stored in
+the saved operation record or progress output.
+
+Unlike Studio app/key reads, issuance uses Console key authentication. The
+frontend chooses Console by region; set `SPATIUS_CONSOLE_URL` to the intended
+region before login and CLI use. Profiles are scoped by Studio and Console
+origins, so changing region may require login again. Studio bearer credentials
+are never sent to Console, and redirects are rejected.
+
+There are no automatic retries or `--resume` for session tokens. An uncertain
+request or lost stdout may have issued a token valid until the recorded
+`expireAt`; the CLI cannot retrieve that token later. Generate another only
+when a new issuance is intended. On `SESSION_TOKEN_FAILED`, verify the app key
+and Console region/access before trying again.
 
 ## Create, poll, and download
 

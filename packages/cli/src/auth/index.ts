@@ -1,11 +1,16 @@
 import { createHash } from 'node:crypto';
 import { CliError } from '../core/errors.js';
 import {
+  SessionTokenClient,
+  type SessionTokenInput,
+} from '../client/session-token.js';
+import {
   StudioClient,
   invalidResponse,
   object,
   string,
   type ObjectValue,
+  type StudioRequestOptions,
 } from './client.js';
 import { browserLogin, type LoginOptions } from './login.js';
 import { AuthStorage, type Profile, type State } from './storage.js';
@@ -34,6 +39,17 @@ export interface AuthStatus {
   profileKey?: string;
   appId?: string;
   expiresAt?: string;
+}
+
+export interface StudioSession {
+  profileKey: string;
+  consoleOrigin: string;
+  createSessionToken(apiKey: string, input: SessionTokenInput): Promise<string>;
+  request(
+    path: string,
+    options?: Omit<StudioRequestOptions, 'token'>,
+  ): Promise<ObjectValue>;
+  clearSelection(appId: string, keyId?: string): Promise<void>;
 }
 
 const defaultAppName = 'Spatius CLI';
@@ -130,6 +146,7 @@ export class AuthManager {
   private readonly originKey: string;
   private readonly storage: AuthStorage;
   private readonly client: StudioClient;
+  private readonly sessionTokens: SessionTokenClient;
 
   constructor(options: AuthOptions) {
     this.studioOrigin = canonicalOrigin(options.studioOrigin);
@@ -141,6 +158,11 @@ export class AuthManager {
     this.storage = new AuthStorage(options.configDir);
     this.client = new StudioClient(
       this.studioOrigin,
+      options.fetch,
+      options.signal,
+    );
+    this.sessionTokens = new SessionTokenClient(
+      this.consoleOrigin,
       options.fetch,
       options.signal,
     );
@@ -282,6 +304,46 @@ export class AuthManager {
       const profile = this.current(state);
       await this.verifyIdentity(state, profile);
       return (await this.apps(state, profile)).map(safeApp);
+    });
+  }
+
+  /** Keep management and its local state bound to one verified account. */
+  async withStudioSession<T>(
+    run: (session: StudioSession) => Promise<T>,
+  ): Promise<T> {
+    return this.storage.locked(async (state) => {
+      const profile = this.current(state);
+      await this.verifyIdentity(state, profile);
+      return run({
+        profileKey: this.profileKey(profile.userId),
+        consoleOrigin: this.consoleOrigin,
+        createSessionToken: (apiKey, input) =>
+          this.sessionTokens.create(apiKey, input),
+        request: async (path, options = {}) => {
+          const request = (token: string) =>
+            this.client.request(path, { ...options, token });
+          if (
+            (options.method ??
+              (options.body === undefined ? 'GET' : 'POST')) === 'GET'
+          )
+            return this.authorized(state, profile, request);
+          await this.ensureToken(state, profile);
+          // Mutations are submitted once, including when authorization fails.
+          return request(profile.accessToken!);
+        },
+        clearSelection: async (appId, keyId) => {
+          if (
+            profile.appId !== appId ||
+            (keyId !== undefined &&
+              (!profile.apiKey || hash(profile.apiKey) !== keyId))
+          )
+            return;
+          delete profile.apiKey;
+          delete profile.pendingKey;
+          if (keyId === undefined) delete profile.appId;
+          await this.storage.write(state);
+        },
+      });
     });
   }
 
