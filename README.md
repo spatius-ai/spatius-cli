@@ -3,32 +3,26 @@
 > [!NOTE]
 > This project is still in beta.
 
-Create avatars and render videos from a coding agent or terminal. The CLI handles
-Studio login, app credentials, temporary uploads, polling, and MP4 downloads.
+Create avatars and render videos from a coding agent or terminal.
 
-Requires Node.js 22+, a Spatius Studio account, and separately approved Avatar
-and Video API access. Avatar creation uses your existing Avatar Creations balance.
-The CLI is experimental.
+Requires Node.js 22+, a Spatius Studio account, and Avatar & Video API access.
+Avatar creation uses your existing Avatar Creations balance.
 
-## Get started
+## Install
 
 ```sh
-npx @spatius/cli@beta install
+npx @spatius/cli install
 ```
 
-Follow the terminal prompts to install the CLI and agent skills, then optionally
-log in and set up Spatius Studio. Approve login in your local browser. You can
-skip completed steps when rerunning the installer.
-
-For manual installation or scripts:
+### Manual installation
 
 ```sh
-npm install -g @spatius/cli@beta
+npm install -g @spatius/cli
 spatius auth login
 spatius setup
 ```
 
-## Use with coding agents
+#### Use with coding agents
 
 ```sh
 npx skills add spatius-ai/spatius-cli --skill spatius-shared spatius-avatar spatius-video
