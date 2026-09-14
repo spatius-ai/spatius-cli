@@ -1,6 +1,6 @@
 {
-  "name": "spatius-cli",
-  "version": "0.1.0-experimental.0",
+  "name": "@spatius/cli",
+  "version": "0.1.0-beta.0",
   "description": "Spatius avatar and video workflows for coding agents",
   "type": "module",
   "license": "MIT",

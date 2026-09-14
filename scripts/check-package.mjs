@@ -1,10 +1,30 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { integrity, PACKAGE_NAME } from './release.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const args = process.argv.slice(2);
+if (args[0] === '--') args.shift();
+const { values } = parseArgs({
+  args,
+  options: { 'artifact-dir': { type: 'string' } },
+});
+const manifest = JSON.parse(
+  await readFile(join(root, 'packages/cli/package.json'), 'utf8'),
+);
+if (manifest.name !== PACKAGE_NAME || manifest.bin?.spatius !== './dist/cli.js')
+  throw new Error('Expected @spatius/cli with the spatius executable.');
 const staging = await mkdtemp(join(tmpdir(), 'spatius-package-'));
 try {
   const raw = execFileSync(
@@ -13,6 +33,14 @@ try {
     { cwd: join(root, 'packages/cli'), encoding: 'utf8' },
   );
   const [pack] = JSON.parse(raw);
+  if (
+    pack.name !== PACKAGE_NAME ||
+    pack.version !== manifest.version ||
+    pack.filename !== 'spatius-cli-' + manifest.version + '.tgz'
+  )
+    throw new Error(
+      'Packed package name/version does not match the CLI manifest.',
+    );
   const paths = new Set(pack.files.map((file) => file.path));
   for (const path of [
     'dist/cli.js',
@@ -36,7 +64,8 @@ try {
     join(staging, 'package.json'),
     JSON.stringify({ name: 'package-smoke-consumer', private: true }),
   );
-  const executable = join(staging, 'node_modules/spatius-cli/dist/cli.js');
+  const installed = join(staging, 'node_modules/@spatius/cli');
+  const executable = join(installed, 'dist/cli.js');
   // Use only the declared dependency tree, not the source workspace.
   execFileSync(
     'npm',
@@ -58,9 +87,60 @@ try {
   );
   if (!result.ok || result.data.commands[0].path !== 'videos create')
     throw new Error('Packaged CLI schema smoke test failed.');
+  const binary = join(
+    staging,
+    'node_modules/.bin/spatius' + (process.platform === 'win32' ? '.cmd' : ''),
+  );
+  const version = execFileSync(binary, ['--version'], {
+    cwd: staging,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  }).trim();
+  if (version !== manifest.version)
+    throw new Error(
+      'Installed spatius executable does not report the package version.',
+    );
+  execFileSync(binary, ['--help'], {
+    cwd: staging,
+    stdio: 'pipe',
+    shell: process.platform === 'win32',
+  });
+  // Agent guidance must come from this checkout, never a stale copied package directory.
+  for (const path of paths) {
+    if (
+      !/^(skills\/|docs\/|README\.md$|LICENSE$|THIRD_PARTY_NOTICES\.md$)/.test(
+        path,
+      )
+    )
+      continue;
+    if (
+      !(await readFile(join(installed, path))).equals(
+        await readFile(join(root, path)),
+      )
+    )
+      throw new Error(
+        'Packaged documentation differs from the release checkout: ' + path,
+      );
+  }
   const entry = await readFile(executable, 'utf8');
   if (!entry.startsWith('#!/usr/bin/env node'))
     throw new Error('Executable shebang missing.');
+  if (values['artifact-dir']) {
+    const directory = resolve(values['artifact-dir']);
+    await mkdir(directory, { recursive: true });
+    const tarball = join(staging, pack.filename);
+    const metadata = {
+      name: pack.name,
+      version: pack.version,
+      filename: pack.filename,
+      integrity: integrity(await readFile(tarball)),
+    };
+    await copyFile(tarball, join(directory, pack.filename));
+    await writeFile(
+      join(directory, 'release-artifact.json'),
+      JSON.stringify(metadata, null, 2) + '\n',
+    );
+  }
   console.log(
     `Validated npm artifact ${pack.filename}, CLI startup, and packaged skills.`,
   );

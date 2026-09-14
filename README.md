@@ -12,7 +12,7 @@ The CLI is experimental.
 After the npm release:
 
 ```sh
-npm install -g spatius-cli
+npm install -g @spatius/cli@beta
 spatius auth login
 spatius setup
 ```
@@ -50,11 +50,18 @@ spatius schema
 spatius schema videos create
 ```
 
-The three skills cover setup, avatar creation, and video generation. Skills and
-CLI behavior ship together. `--dry-run` previews a creation without uploading or
-submitting it. `--help` describes the installed CLI's options.
+The three skills cover setup, avatar creation, and video generation. The npm
+package includes the matching skills under `skills/`; use those files when an
+exact version match is needed. The GitHub installer above follows the repository
+default branch. Skills and CLI behavior ship together. `--dry-run` previews a
+creation without uploading or submitting it. `--help` describes the installed CLI's options.
 
 See the [workflow guide](docs/workflows.md) for input requirements and recovery,
 and the [Spatius API documentation](https://docs.spatius.ai/api-reference/video-generation)
 for service behavior. Repository development instructions are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Prereleases use the npm `beta` channel. After a stable release, install it with
+`npm install -g @spatius/cli`. The executable is always `spatius`. Maintainers can
+find the release workflow and first-time setup in the
+[deployment guide](docs/deployment.md).
