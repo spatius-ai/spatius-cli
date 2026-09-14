@@ -90,6 +90,12 @@ interface CreateJournal {
   body: Record<string, unknown>;
   job?: CreatedJob;
 }
+/** Milliseconds between job status polls in `waitJob`, per job kind. */
+const JOB_POLL_INTERVALS: Record<'avatar' | 'video', number> = {
+  avatar: 60_000,
+  video: 10_000,
+};
+
 export class Workflows {
   readonly media: MediaClient;
   constructor(private readonly options: WorkflowOptions) {
@@ -982,6 +988,7 @@ export class Workflows {
     options: WaitOptions = {},
   ): Promise<JobDetail> {
     identifier(id, 'Job ID');
+    const pollInterval = JOB_POLL_INTERVALS[kind];
     const timeout = options.timeout ?? 600;
     if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 86_400)
       throw new CliError(
@@ -1042,9 +1049,9 @@ export class Workflows {
       const remaining = deadline - Date.now();
       if (remaining <= 0) throw this.waitTimeout(kind, id);
       try {
-        await delay(Math.min(15_000, remaining), undefined, { signal });
+        await delay(Math.min(pollInterval, remaining), undefined, { signal });
         // A shortened final sleep reaches the wait boundary, not another poll.
-        if (remaining <= 15_000) throw this.waitTimeout(kind, id);
+        if (remaining <= pollInterval) throw this.waitTimeout(kind, id);
       } catch {
         if (this.options.signal?.aborted) this.options.signal.throwIfAborted();
         throw this.waitTimeout(kind, id);
