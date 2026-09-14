@@ -55,6 +55,8 @@ try {
     'THIRD_PARTY_NOTICES.md',
     'skills/spatius-shared/SKILL.md',
     'skills/spatius-shared/references/recovery.md',
+    'skills/spatius-shared/references/completions.md',
+    'docs/completions.md',
     'skills/spatius-avatar/SKILL.md',
     'skills/spatius-video/SKILL.md',
     'skills/spatius-video/references/inputs-and-recovery.md',
@@ -93,6 +95,30 @@ try {
   );
   if (!result.ok || result.data.commands[0].path !== 'videos create')
     throw new Error('Packaged CLI schema smoke test failed.');
+  for (const shell of ['bash', 'zsh', 'fish']) {
+    const script = execFileSync(
+      process.execPath,
+      [executable, 'completion', shell],
+      {
+        cwd: staging,
+        encoding: 'utf8',
+        env: { ...process.env, SPATIUS_STUDIO_URL: 'must-not-read-config' },
+      },
+    );
+    if (!script.startsWith('#') || !script.includes('__complete'))
+      throw new Error(`Packaged ${shell} completion script smoke test failed.`);
+  }
+  const completion = execFileSync(
+    process.execPath,
+    [executable, '__complete', '--', 'videos', 'create', '--fit', 'c'],
+    {
+      cwd: staging,
+      encoding: 'utf8',
+      env: { ...process.env, SPATIUS_STUDIO_URL: 'must-not-read-config' },
+    },
+  );
+  if (completion !== 'plain:\ncrop\ncontain\n')
+    throw new Error('Packaged completion query smoke test failed.');
   const binary = join(
     staging,
     'node_modules/.bin/spatius' + (process.platform === 'win32' ? '.cmd' : ''),

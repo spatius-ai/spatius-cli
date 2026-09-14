@@ -85,7 +85,12 @@ destination. It retrieves an existing key through Studio and generates the token
 at the configured Console origin. Read [Studio management](references/studio-management.md)
 for key selection, region configuration, and lost-response recovery.
 
-Except for the human-only `install` command, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
+For terminal completion setup, read [shell completions](references/completions.md).
+`spatius completion <shell>` emits shell code and rejects `--json`; do not parse
+it as a workflow result or modify shell startup files unless requested.
+
+Except for the human-only `install` command and shell script output from
+`completion`, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
 Progress and structured failures go to stderr. Inspect the exit code and error
 `code`, `retryable`, and `recovery`; avoid parsing decorative human text. Exit 3
 means a wait deadline, and does not cancel the remote job.

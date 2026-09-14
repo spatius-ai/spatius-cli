@@ -1,9 +1,10 @@
-import { Command, Option } from 'commander';
+import { Argument, Command, Option } from 'commander';
 import type { AuthManager } from './auth/index.js';
 import type { Workflows } from './workflows/index.js';
 import type { StudioWorkflows } from './workflows/studio.js';
 import type { MediaKind, VideoSettings } from '@spatius/contracts';
 import { CliError } from './core/errors.js';
+import { completionScript, completionShells } from './completions.js';
 
 type Values = Record<string, string | number | boolean | string[] | undefined>;
 type Flag = {
@@ -12,15 +13,22 @@ type Flag = {
   type?: 'number';
   choices?: string[];
   default?: unknown;
+  completion?: 'file';
 };
 interface Definition {
   path: string;
   description: string;
-  args?: { name: string; required?: boolean }[];
+  args?: {
+    name: string;
+    required?: boolean;
+    choices?: string[];
+    completion?: 'file';
+  }[];
   flags?: Flag[];
   output: string;
   example: string;
   interactive?: boolean;
+  outputMode?: 'script';
   run?: (args: string[], values: Values, context: Context) => Promise<unknown>;
 }
 export interface Context {
@@ -99,6 +107,15 @@ function settings(v: Values): VideoSettings {
 }
 
 export const definitions: Definition[] = [
+  {
+    path: 'completion',
+    description: 'Print a shell completion script for bash, zsh, or fish.',
+    args: [{ name: 'shell', required: true, choices: completionShells }],
+    output:
+      'Shell script on stdout; no JSON envelope or local configuration changes.',
+    outputMode: 'script',
+    example: 'spatius completion bash',
+  },
   {
     path: 'install',
     description:
@@ -296,7 +313,7 @@ export const definitions: Definition[] = [
     description: 'Upload a local input to temporary storage.',
     output: 'Upload ID, accepted parts, status, and completed URL/expiration.',
     example: 'spatius assets upload ./speech.wav --kind audio',
-    args: [{ name: 'file', required: true }],
+    args: [{ name: 'file', required: true, completion: 'file' }],
     flags: [
       {
         flags: '--kind <kind>',
@@ -345,6 +362,7 @@ export const definitions: Definition[] = [
     flags: [
       {
         flags: '--image <file-or-url>',
+        completion: 'file',
         description:
           'Opaque JPEG/PNG, at most 5 MiB, shorter side at least 340 pixels.',
       },
@@ -409,10 +427,12 @@ export const definitions: Definition[] = [
       },
       {
         flags: '--audio <file-or-url>',
+        completion: 'file',
         description: 'Supported audio input, at most 500 MiB.',
       },
       {
         flags: '--background <file-or-url>',
+        completion: 'file',
         description: 'Optional JPEG/PNG/WebP background, at most 50 MiB.',
       },
       { flags: '--name <name>', description: 'Video job name.' },
@@ -519,6 +539,7 @@ export const definitions: Definition[] = [
     flags: [
       {
         flags: '--output <path>',
+        completion: 'file',
         description: 'Destination MP4 file (required).',
       },
       { flags: '--force', description: 'Replace an existing destination.' },
@@ -582,7 +603,16 @@ export function commandSchema(path?: string) {
       130: 'interrupted',
     },
     commands: found.map(
-      ({ path, description, args, flags, output, example, interactive }) => ({
+      ({
+        path,
+        description,
+        args,
+        flags,
+        output,
+        example,
+        interactive,
+        outputMode,
+      }) => ({
         path,
         description,
         arguments: args ?? [],
@@ -592,6 +622,7 @@ export function commandSchema(path?: string) {
         ...(interactive
           ? { interactive: true, outputMode: 'human', supportsJson: false }
           : {}),
+        ...(outputMode ? { outputMode, supportsJson: false } : {}),
       }),
     ),
   };
@@ -623,8 +654,13 @@ export function buildProgram(
       parent = group;
     }
     const cmd = parent.command(parts.at(-1)!).description(def.description);
-    for (const arg of def.args ?? [])
-      cmd.argument(arg.required ? `<${arg.name}>` : `[${arg.name}]`);
+    for (const arg of def.args ?? []) {
+      const argument = new Argument(
+        arg.required ? `<${arg.name}>` : `[${arg.name}]`,
+      );
+      if (arg.choices) argument.choices(arg.choices);
+      cmd.addArgument(argument);
+    }
     for (const flag of def.flags ?? []) {
       const option = new Option(flag.flags, flag.description);
       if (flag.choices) option.choices(flag.choices);
@@ -643,6 +679,20 @@ export function buildProgram(
       cmd.addOption(option);
     }
     cmd.action(async (...args: unknown[]) => {
+      if (def.outputMode === 'script') {
+        if (root.opts().json)
+          throw new CliError(
+            'INVALID_ARGUMENT',
+            'Shell completion scripts do not support --json.',
+            {
+              exitCode: 2,
+              recovery:
+                'Run spatius completion bash, zsh, or fish without --json.',
+            },
+          );
+        root.configureOutput().writeOut!(completionScript(args[0] as string));
+        return;
+      }
       if (def.interactive) {
         const json = root.opts().json === true;
         if (!json) presentation.onHumanOutput?.();
@@ -685,5 +735,133 @@ export function buildProgram(
     .action((parts: string[]) =>
       emit(commandSchema(parts.length ? parts.join(' ') : undefined)),
     );
+  root
+    .command('__complete', { hidden: true })
+    .description('Internal shell completion protocol.')
+    .argument('[words...]')
+    .action((words: string[]) => {
+      const result = resolveCompletion(root, words);
+      root.configureOutput().writeOut!(
+        [
+          `${result.files ? 'files' : 'plain'}:${result.prefix}`,
+          ...result.candidates,
+        ].join('\n') + '\n',
+      );
+    });
   return root;
+}
+
+/** Resolve partial argv without parsing actions, reading config, or fetching account data. */
+export function resolveCompletion(root: Command, words: string[]) {
+  let command = root;
+  let path: string[] = [];
+  let positional = 0;
+  let ended = false;
+  let discovery: 'schema' | 'help' | undefined;
+  let pending: Option | undefined;
+  const empty = { files: false, prefix: '', candidates: [] as string[] };
+  const options = () => {
+    const result: Option[] = [];
+    for (
+      let current: Command | null = command;
+      current;
+      current = current.parent
+    )
+      result.push(...current.options);
+    return result;
+  };
+  const findOption = (word: string) =>
+    options().find((o) => o.long === word || o.short === word);
+  const definition = () => definitions.find((d) => d.path === path.join(' '));
+  const optionValue = (option: Option, value: string, prefix = '') => ({
+    files:
+      definition()?.flags?.some(
+        (f) => f.flags === option.flags && f.completion === 'file',
+      ) === true && !/^[a-z][a-z\d+.-]*:\/\//i.test(value),
+    prefix,
+    candidates: (option.argChoices ?? [])
+      .filter((v) => v.startsWith(value))
+      .map((v) => prefix + v),
+  });
+  for (const word of words.slice(0, -1)) {
+    if (pending) {
+      pending = undefined;
+      continue;
+    }
+    if (!ended && word === '--') {
+      ended = true;
+      continue;
+    }
+    if (!ended && word.startsWith('-')) {
+      const option = findOption(word.split('=')[0]!);
+      if (!option) return empty;
+      if (option.required && !word.includes('=')) pending = option;
+      continue;
+    }
+    if (
+      !discovery &&
+      ((command === root && word === 'schema') ||
+        (command.commands.length > 0 && word === 'help'))
+    ) {
+      discovery = word as 'schema' | 'help';
+      continue;
+    }
+    const child = command.commands.find(
+      (c) => c.name() === word && c.name() !== '__complete',
+    );
+    if (child && !positional) {
+      // Commander's help command accepts one child name, while schema accepts
+      // an entire command path. Extra help words are ignored by Commander.
+      if (discovery === 'help') return empty;
+      command = child;
+      path = [...path, word];
+    } else if (command.commands.length || discovery) return empty;
+    else positional++;
+  }
+  const current = words.at(-1) ?? '';
+  if (pending) return optionValue(pending, current);
+  if (!ended && current.startsWith('-') && current.includes('=')) {
+    const index = current.indexOf('=');
+    const option = findOption(current.slice(0, index));
+    return option?.required
+      ? optionValue(
+          option,
+          current.slice(index + 1),
+          current.slice(0, index + 1),
+        )
+      : empty;
+  }
+  const candidates: string[] = [];
+  if (!ended && !discovery) {
+    for (const option of options())
+      candidates.push(
+        ...[option.short, option.long].filter((v): v is string => !!v),
+      );
+    candidates.push('-h', '--help');
+  }
+  if (!current.startsWith('-') || ended) {
+    if (!positional) {
+      candidates.push(
+        ...command.commands
+          .map((c) => c.name())
+          .filter(
+            (name) =>
+              name !== '__complete' &&
+              (discovery !== 'schema' || name !== 'schema'),
+          ),
+      );
+      if (command.commands.length && !discovery) candidates.push('help');
+    }
+    if (!discovery) {
+      const argument = definition()?.args?.[positional];
+      if (argument?.completion === 'file') return { ...empty, files: true };
+      candidates.push(...(argument?.choices ?? []));
+    }
+  }
+  return {
+    ...empty,
+    candidates: [...new Set(candidates)].filter((value) =>
+      value.startsWith(current),
+    ),
+  };
 }

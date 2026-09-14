@@ -93,3 +93,18 @@ ten-second lifetime. A lock expires after 30 seconds; failed checks wait one
 hour, successful checks 24 hours. Cache failures are silent. Tests and artifact
 checks disable the notifier unless explicitly testing it, and compare warm-cache
 startup with the baseline rather than making network speed a test prerequisite.
+
+## Completion development
+
+Keep command discovery and completion resolution in `packages/cli/src/commands.ts`.
+Shell adapters live in `packages/cli/src/completions.ts`; they pass partial argv
+after `__complete --` and treat replies as literal data. They must never evaluate
+reply text or initialize authentication, configuration, or network clients.
+Add file hints and allowed values to command definitions, so parser, schema,
+and completions remain aligned. The public `completion` command declares its
+raw script output exception in the schema.
+
+Install Bash, Zsh, and Fish to exercise all adapter tests locally. Missing shells
+are skipped locally and required in CI. Tests use an isolated executable and
+temporary media paths; no shell profiles or login state are changed. Verify
+the installed tarball as well as source execution with `pnpm check`.
