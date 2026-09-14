@@ -17,51 +17,15 @@ spatius auth login
 spatius setup
 ```
 
-Approve login at `https://app.spatius.ai` in your local browser. Studio API
-requests use `https://api.studio.spatius.ai`; development origin settings are
-documented in the [workflow guide](docs/workflows.md). Credentials stay in private user configuration
-storage; commands never print API keys. Setup reuses a dedicated `Spatius CLI` app.
-Use `spatius setup --app-id <id>` to select another app you own.
-
-```sh
-spatius avatars create --image ./portrait.png --name Presenter
-spatius avatars jobs wait <avatar-job-id>
-spatius videos create --avatar-id <avatar-id> --audio ./speech.wav --background ./background.png
-spatius videos wait <video-job-id>
-spatius videos download <video-job-id> --output ./video.mp4
-```
-
-Inputs accept local files or public HTTP(S) URLs. Local files are uploaded to
-temporary storage and remain available for 24 hours after upload completion.
-Video output follows the service's retention deadline, currently seven days
-after render submission. Save your MP4 before it expires.
-
-Commands return JSON on stdout; progress and errors go to stderr. Save the
-`operationId` and `jobId` returned by creation. Resume an interrupted creation with
-`spatius videos create --resume <operation-id>` or
-`spatius avatars create --resume <operation-id>`; do not start a fresh creation
-just because a command timed out.
+Approve login in your local browser.
 
 ## Use with coding agents
 
 ```sh
 npx skills add spatius-ai/spatius-cli --skill spatius-shared spatius-avatar spatius-video
-spatius schema
-spatius schema videos create
 ```
-
-The three skills cover setup, avatar creation, and video generation. The npm
-package includes the matching skills under `skills/`; use those files when an
-exact version match is needed. The GitHub installer above follows the repository
-default branch. Skills and CLI behavior ship together. `--dry-run` previews a
-creation without uploading or submitting it. `--help` describes the installed CLI's options.
 
 See the [workflow guide](docs/workflows.md) for input requirements and recovery,
 and the [Spatius API documentation](https://docs.spatius.ai/api-reference/video-generation)
 for service behavior. Repository development instructions are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Prereleases use the npm `beta` channel. After a stable release, install it with
-`npm install -g @spatius/cli`. The executable is always `spatius`. Maintainers can
-find the release workflow and first-time setup in the
-[deployment guide](docs/deployment.md).
