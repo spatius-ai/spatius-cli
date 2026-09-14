@@ -284,17 +284,19 @@ export const definitions: Definition[] = [
       },
       {
         flags: '--width <pixels>',
-        description: 'Even width, 64–1920 (default 1024).',
+        description:
+          'Even width, 64–1920 (default 1024; omitted with a background).',
         type: 'number',
       },
       {
         flags: '--height <pixels>',
-        description: 'Even height, 64–1920 (default 1024).',
+        description:
+          'Even height, 64–1920 (default 1024; omitted with a background).',
         type: 'number',
       },
       {
         flags: '--fit <fit>',
-        description: 'Avatar fit (default crop).',
+        description: 'Avatar fit (default crop; omitted with a background).',
         choices: ['crop', 'contain'],
       },
       {

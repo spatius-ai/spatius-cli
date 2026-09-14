@@ -17,6 +17,15 @@ to 50 MiB. Raw PCM must first be wrapped correctly in WAV; changing its extensio
 does not convert it. For settings and lifetime details, read
 [inputs and recovery](references/inputs-and-recovery.md).
 
+Sizing depends on whether a background is supplied. Without `--background`,
+the CLI defaults (1024×1024, `crop`) are fine to send. With `--background`,
+do not add `--width`, `--height`, or `--fit` unless the user explicitly asks
+for a size or fit: the service sizes the frame from the background when none
+is sent, and any explicit value overrides that. A background whose aspect
+ratio differs from the CLI defaults is not a reason to set a size. Run
+`--dry-run` and confirm the `video` object carries no size or fit fields the
+user did not request.
+
 ```sh
 spatius videos create --avatar-id 00000000-0000-4000-8000-000000000001 --audio ./speech.wav --background ./background.png --dry-run
 spatius videos create --avatar-id 00000000-0000-4000-8000-000000000001 --audio ./speech.wav --background ./background.png

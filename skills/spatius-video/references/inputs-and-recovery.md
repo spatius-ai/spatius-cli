@@ -1,12 +1,16 @@
 # Inputs, presentation, and recovery
 
-| Setting            | Default and allowed range                                      |
-| ------------------ | -------------------------------------------------------------- |
-| Width / height     | 1024 each; even integers 64–1920, total area ≤2,073,600 pixels |
-| Fit                | `crop`; `contain` also supported                               |
-| Background color   | `#000000`; six-digit RGB hex                                   |
-| Background fit     | `cover`; `contain` or `stretch` also supported                 |
-| Lead-in / lead-out | 0; each 0–60 seconds of additional idle time                   |
+| Setting            | Default and allowed range                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Width / height     | Without a background: 1024 each. With a background: omitted, and the service follows the image. Even integers 64–1920, area ≤2,073,600                     |
+| Fit                | Without a background: `crop`. With a background: omitted unless requested. `crop` fills the frame and can cut the avatar; `contain` keeps the whole avatar |
+| Background color   | `#000000`; six-digit RGB hex                                                                                                                               |
+| Background fit     | `cover`; `contain` or `stretch` also supported                                                                                                             |
+| Lead-in / lead-out | 0; each 0–60 seconds of additional idle time                                                                                                               |
+
+Only pass width, height, or fit with a background when the user asked for
+them. A mismatch between the background's aspect ratio and the documented
+defaults is not such a request.
 
 The service controls encoding. Transitions can make output longer than the
 audio even with zero additional idle time. Audio decoding and duration checks

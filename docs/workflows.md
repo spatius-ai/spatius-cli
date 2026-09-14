@@ -107,11 +107,15 @@ They cannot contain embedded credentials or point to private networks.
 
 | Video option                              | Default | Allowed values                                |
 | ----------------------------------------- | ------- | --------------------------------------------- |
-| `--width`, `--height`                     | 1024    | Even integers 64–1920; area ≤2,073,600 pixels |
-| `--fit`                                   | crop    | crop, contain                                 |
+| `--width`, `--height`                     | 1024\*  | Even integers 64–1920; area ≤2,073,600 pixels |
+| `--fit`                                   | crop\*  | crop, contain                                 |
 | `--background-color`                      | #000000 | Six-digit RGB hex                             |
 | `--background-fit`                        | cover   | cover, contain, stretch                       |
 | `--lead-in-seconds`, `--lead-out-seconds` | 0       | Finite values 0–60                            |
+
+\* Without `--background`, the CLI sends these defaults. With `--background`,
+it omits width, height, and fit unless you set them, and the service sizes the
+frame from the background image. Any explicit value overrides that behavior.
 
 Quote hex colors in shells. Encoding is service-controlled. Source URLs need to
 cover the preparation window of up to 30 minutes. Temporary inputs are immutable

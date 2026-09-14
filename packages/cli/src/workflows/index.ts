@@ -543,7 +543,10 @@ export class Workflows {
           uploadOperationId: randomUUID(),
         };
   }
-  private videoSettings(video: VideoSettings = {}): VideoSettings {
+  private videoSettings(
+    video: VideoSettings = {},
+    hasBackground = false,
+  ): VideoSettings {
     const settings = { ...VIDEO_DEFAULTS, ...video };
     for (const dimension of [settings.width, settings.height])
       if (
@@ -576,7 +579,13 @@ export class Workflows {
           { exitCode: 2 },
         );
     settings.backgroundColor = settings.backgroundColor.toLowerCase();
-    return settings;
+    if (!hasBackground) return settings;
+    // With a background, the service derives the frame from the image unless
+    // the caller sets a size or fit explicitly. Do not send CLI defaults.
+    const explicit: VideoSettings = { ...settings };
+    for (const key of ['width', 'height', 'fit'] as const)
+      if (video[key] === undefined) delete explicit[key];
+    return explicit;
   }
   private name(name: string | undefined) {
     if (name !== undefined && (!name.trim() || name.length > 128))
@@ -643,7 +652,10 @@ export class Workflows {
       requestId: options.requestId
         ? identifier(options.requestId, 'Request ID')
         : randomUUID(),
-      video: this.videoSettings(options.video),
+      video: this.videoSettings(
+        options.video,
+        options.background !== undefined,
+      ),
       ...(this.name(options.name) !== undefined ? { name: options.name } : {}),
     });
   }
