@@ -1,10 +1,11 @@
 // Prompt conventions adapted from create-spatius-app (MIT, spatialwalk 2026).
-import { confirm, intro, note, outro, spinner } from '@clack/prompts';
+import { confirm, intro, note, outro, select, spinner } from '@clack/prompts';
 import { CliError } from '../core/errors.js';
 import { Presence } from './presence.js';
 import { createTerminalTheme } from './theme.js';
 import { checkInterrupted } from './process.js';
 import type { InstallerUI } from './wizard.js';
+import type { CompletionShell } from '../completions.js';
 
 export function createInstallerUI(signal: AbortSignal): InstallerUI {
   // Node's styleText (used by Clack) treats an empty NO_COLOR differently from our theme.
@@ -45,6 +46,44 @@ export function createInstallerUI(signal: AbortSignal): InstallerUI {
         );
       checkInterrupted(signal);
       return answer;
+    },
+    async selectCompletionShell(detected) {
+      checkInterrupted(signal);
+      const answer = await select<CompletionShell | 'skip'>({
+        message: 'Set up shell completions?',
+        initialValue: detected ?? 'skip',
+        options: [
+          {
+            value: 'bash',
+            label: 'Bash',
+            hint: 'save completions and update Bash startup files',
+          },
+          {
+            value: 'zsh',
+            label: 'Zsh',
+            hint: 'save completions and update .zshrc',
+          },
+          {
+            value: 'fish',
+            label: 'Fish',
+            hint: 'save an automatically loaded completion file',
+          },
+          {
+            value: 'skip',
+            label: 'Skip',
+            hint: 'leave shell configuration unchanged',
+          },
+        ],
+        signal,
+      });
+      if (typeof answer === 'symbol')
+        throw new CliError(
+          'INTERRUPTED',
+          'Installation was cancelled. Completed steps are retained.',
+          { exitCode: 130 },
+        );
+      checkInterrupted(signal);
+      return answer === 'skip' ? undefined : answer;
     },
     note(message, title = 'Setup') {
       note(message, theme.accent(title));

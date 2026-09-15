@@ -3,12 +3,16 @@ import { runWizard } from '../src/install/wizard.js';
 import { CliError } from '../src/core/errors.js';
 import { validateInstallerEnvironment } from '../src/install/index.js';
 import { buildProgram, commandSchema } from '../src/commands.js';
+import type { CompletionShell } from '../src/completions.js';
 
 function harness(answers = [true, true, true], authenticated = true) {
   const controller = new AbortController();
   const ui = {
     welcome: vi.fn(async () => {}),
     confirm: vi.fn(async () => answers.shift() ?? false),
+    selectCompletionShell: vi.fn(
+      async (): Promise<CompletionShell | undefined> => undefined,
+    ),
     note: vi.fn(),
     task: async <T>(_: string, work: () => Promise<T>) => work(),
     handoff: vi.fn(async (work: () => Promise<void>) => work()),
@@ -30,6 +34,17 @@ function harness(answers = [true, true, true], authenticated = true) {
     })),
     existingCliAvailable: vi.fn(async () => false),
     installSkills: vi.fn(async () => {}),
+    detectCompletionShell: vi.fn(async () => ({
+      supported: true,
+      shell: 'zsh' as CompletionShell,
+      source: 'launching process',
+    })),
+    installCompletions: vi.fn(async (shell: CompletionShell) => ({
+      shell,
+      files: ['/home/user/.zshrc'],
+      backups: [],
+      activation: 'Open a new terminal.',
+    })),
   };
   const auth = {
     status: vi.fn(async () => ({ authenticated })),
@@ -56,6 +71,67 @@ function harness(answers = [true, true, true], authenticated = true) {
 }
 
 describe('installer orchestration', () => {
+  it('offers the launching shell after installing the persistent CLI and permits an override', async () => {
+    const h = harness();
+    h.ui.selectCompletionShell.mockResolvedValue('fish');
+    await h.run();
+    expect(h.ui.selectCompletionShell).toHaveBeenCalledWith('zsh');
+    expect(h.services.installCompletions).toHaveBeenCalledWith('fish');
+    expect(
+      h.services.installCompletions.mock.invocationCallOrder[0],
+    ).toBeGreaterThan(h.services.installCli.mock.invocationCallOrder[0]!);
+    expect(h.ui.note).toHaveBeenCalledWith(
+      expect.stringContaining('Completions: fish: Installed'),
+      'Installation summary',
+    );
+  });
+  it('can configure completions for an existing persistent CLI', async () => {
+    const h = harness([false, false, false]);
+    h.services.existingCliAvailable.mockResolvedValue(true);
+    h.ui.selectCompletionShell.mockResolvedValue('bash');
+    await h.run();
+    expect(h.services.installCli).not.toHaveBeenCalled();
+    expect(h.services.installCompletions).toHaveBeenCalledWith('bash');
+  });
+  it('does not edit shell configuration when skipped', async () => {
+    const h = harness();
+    await h.run();
+    expect(h.services.installCompletions).not.toHaveBeenCalled();
+  });
+  it('does not offer unusable completions when npx is the only CLI', async () => {
+    const h = harness([false, false, false]);
+    await h.run();
+    expect(h.services.detectCompletionShell).not.toHaveBeenCalled();
+    expect(h.ui.selectCompletionShell).not.toHaveBeenCalled();
+    expect(h.ui.note).toHaveBeenCalledWith(
+      expect.stringContaining('spatius needs to be on PATH'),
+      'Installation summary',
+    );
+  });
+  it('retains CLI progress after a completion installation failure', async () => {
+    const h = harness();
+    h.ui.selectCompletionShell.mockResolvedValue('zsh');
+    h.services.installCompletions.mockRejectedValue(
+      new CliError('INSTALL_COMPLETIONS_FAILED', 'Check profile permissions.'),
+    );
+    await expect(h.run()).rejects.toMatchObject({
+      code: 'INSTALL_COMPLETIONS_FAILED',
+    });
+    expect(h.ui.note).toHaveBeenCalledWith(
+      expect.stringContaining('Completions: zsh: Not completed'),
+      'Progress retained',
+    );
+    expect(h.ui.close).toHaveBeenCalled();
+  });
+  it('stops cancellation at shell selection before editing files', async () => {
+    const h = harness();
+    h.ui.selectCompletionShell.mockImplementation(async () => {
+      h.controller.abort();
+      return 'zsh';
+    });
+    await expect(h.run()).rejects.toMatchObject({ code: 'INTERRUPTED' });
+    expect(h.services.installCompletions).not.toHaveBeenCalled();
+  });
   it.each(
     [false, true].flatMap((cli) =>
       [false, true].flatMap((skills) =>

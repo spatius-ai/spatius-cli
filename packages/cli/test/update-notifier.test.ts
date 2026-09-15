@@ -151,6 +151,29 @@ describe('background update cache', () => {
 
 describe('notifier isolation', () => {
   it.each([
+    ['completion', 'zsh'],
+    ['__complete', '--', 'videos', 'create', '--fit', 'c'],
+  ])('keeps completion commands silent and offline: %j', async (...args) => {
+    const path = await directory();
+    const launch = vi.fn();
+    for (const cached of [
+      undefined,
+      cache(),
+      cache(Date.now() - CHECK_INTERVAL),
+    ]) {
+      if (cached) writeCache(path, cached);
+      const notifier = createNotifier({
+        version: '1.0.0',
+        args,
+        env: { SPATIUS_CONFIG_DIR: path },
+        launch,
+      });
+      expect(notifier.notice).toBeUndefined();
+      notifier.finish();
+    }
+    expect(launch).not.toHaveBeenCalled();
+  });
+  it.each([
     ['install'],
     ['update'],
     ['update', '--channel', 'beta'],

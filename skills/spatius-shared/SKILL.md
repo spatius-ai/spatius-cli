@@ -12,7 +12,7 @@ Use the installed `spatius` executable. If installation is needed, the prereleas
 package is `@spatius/cli@beta` (`npm install -g @spatius/cli@beta`); stable releases
 use `@spatius/cli`. The executable name remains `spatius`.
 For human onboarding, `npx @spatius/cli@beta install` opens an interactive
-installer for the global CLI, all three bundled skills, and optional Studio
+installer for the global CLI, optional shell completions, all three bundled skills, and optional Studio
 login/setup. It requires a local terminal outside CI and does not support
 `--json`. Agent scripts should use the individual commands below; do not run
 the installer expecting structured output or unattended prompts. The skills
@@ -85,7 +85,12 @@ destination. It retrieves an existing key through Studio and generates the token
 at the configured Console origin. Read [Studio management](references/studio-management.md)
 for key selection, region configuration, and lost-response recovery.
 
-Except for the human-only `install` command, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
+For terminal completion setup, read [shell completions](references/completions.md).
+`spatius completion <shell>` emits shell code and rejects `--json`; do not parse
+it as a workflow result or modify shell startup files unless requested.
+
+Except for the human-only `install` command and shell script output from
+`completion`, success is one JSON object on stdout with `schemaVersion`, `ok`, and `data`.
 Progress and structured failures go to stderr. Inspect the exit code and error
 `code`, `retryable`, and `recovery`; avoid parsing decorative human text. Exit 3
 means a wait deadline, and does not cancel the remote job.
