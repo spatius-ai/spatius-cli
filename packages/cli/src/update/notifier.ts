@@ -60,6 +60,8 @@ export function createNotifier(options: {
     env.SPATIUS_NO_UPDATE_NOTIFIER === '1' ||
     command === 'install' ||
     command === 'update' ||
+    command === 'completion' ||
+    command === '__complete' ||
     options.args.includes('--dry-run')
   )
     return empty;

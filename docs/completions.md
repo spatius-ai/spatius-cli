@@ -10,6 +10,7 @@ allowed values (including `--fit=contain`), media inputs, and download paths.
 The shell handles filename quoting and directory navigation. Account IDs, names,
 tokens, and arbitrary values are not suggested. Pressing Tab queries the local
 CLI command registry; it does not read credentials or make service requests.
+Completion commands also skip update notices and background version checks.
 
 ## Interactive installation
 

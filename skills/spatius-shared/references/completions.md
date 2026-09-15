@@ -13,6 +13,7 @@ spatius completion fish
 
 Choose the user's actual shell. `completion` prints raw shell code on stdout
 without requiring login or creating local configuration. It rejects `--json`.
+Completion commands skip update notices and background version checks.
 Save or source only the matching script. Modify shell startup files only when
 the user requested persistent setup, and preserve their existing configuration.
 
