@@ -110,6 +110,40 @@ describe('installer shell detection', () => {
 });
 
 describe('persistent completion setup', () => {
+  it.skipIf(spawnSync('zsh', ['--version']).status !== 0 && !process.env.CI)(
+    'excludes insecure Zsh completion directories without prompting or aborting setup',
+    async () => {
+      const o = await fixture();
+      const insecure = join(o.home, 'insecure-completions');
+      await mkdir(insecure);
+      await chmod(insecure, 0o777);
+      await writeFile(
+        join(insecure, '_spatius_unsafe'),
+        '#compdef spatius-unsafe\n',
+      );
+      await writeFile(
+        join(o.home, '.zshenv'),
+        'fpath=("$ZDOTDIR/insecure-completions" $fpath)\n',
+      );
+      const installed = await installShellCompletions('zsh', o);
+      const env = { ...process.env, HOME: o.home, ZDOTDIR: o.home };
+      const inspect =
+        'print -r -- "spatius=${_comps[spatius]-} unsafe=${_comps[spatius-unsafe]-}"';
+      for (const args of [
+        ['-d', '-ic', inspect],
+        [
+          '-d',
+          '-c',
+          installed.activation.split('or run:\n')[1]! + '\n' + inspect,
+        ],
+      ]) {
+        const result = spawnSync('zsh', args, { env, encoding: 'utf8' });
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout).toBe('spatius=_spatius unsafe=\n');
+      }
+    },
+  );
   for (const shell of completionShells) {
     const available = spawnSync(shell, ['--version']).status === 0;
     it.skipIf(!available && !process.env.CI)(
@@ -154,6 +188,7 @@ describe('persistent completion setup', () => {
                   { env, encoding: 'utf8' },
                 );
         expect(result.status, result.stderr).toBe(0);
+        if (shell === 'zsh') expect(result.stderr).toBe('');
         if (shell !== 'fish') expect(result.stdout).toContain('_spatius');
         // Printed activation commands must also handle spaces and apostrophes in paths.
         const activate = spawnSync(

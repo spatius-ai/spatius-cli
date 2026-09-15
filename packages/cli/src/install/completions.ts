@@ -179,10 +179,12 @@ export async function installShellCompletions(
       }
       files.push({ path: profile, body, managed: true });
     } else if (shell === 'zsh') {
+      // Keep compinit's security audit, but exclude insecure directories instead
+      // of prompting (which aborts when the shell has no controlling terminal).
       const directory = environment.ZDOTDIR
         ? resolve(options.cwd, environment.ZDOTDIR)
         : home;
-      const body = `if [[ -o interactive && -r ${quote(script)} ]]; then\n  if (( ! $+functions[compdef] )); then\n    autoload -Uz compinit\n    compinit\n  fi\n  source ${quote(script)}\nfi`;
+      const body = `if [[ -o interactive && -r ${quote(script)} ]]; then\n  if (( ! $+functions[compdef] )); then\n    autoload -Uz compinit\n    compinit -i\n  fi\n  source ${quote(script)}\nfi`;
       files.push({ path: join(directory, '.zshrc'), body, managed: true });
     }
     // Read and validate every target before writing any of them.
@@ -234,7 +236,7 @@ export async function installShellCompletions(
         : quote(script);
     const initialize =
       shell === 'zsh'
-        ? 'autoload -Uz compinit; (( $+functions[compdef] )) || compinit\n'
+        ? 'autoload -Uz compinit; (( $+functions[compdef] )) || compinit -i\n'
         : '';
     return {
       shell,

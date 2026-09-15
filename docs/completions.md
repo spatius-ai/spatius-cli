@@ -49,6 +49,11 @@ existing files receive a sibling `.spatius-backup-<id>` backup; unchanged files
 are reused. Symlinked dotfiles retain their links and update the target file.
 Automatic setup is supported on macOS and Linux.
 
+When Zsh needs completion initialization, the installer uses `compinit -i` to
+exclude insecure completion directories without prompting. It preserves an
+already initialized completion system. If other completions are missing, run
+`compaudit` and correct the reported ownership or permissions.
+
 ## Bash
 
 Bash 3.2 or newer is supported, including macOS's bundled Bash. The separate

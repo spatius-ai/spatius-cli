@@ -25,6 +25,10 @@ Do not run this interactive workflow unattended or assume the child process
 activated completions in the user's current shell. Relay its activation
 command or suggest opening a new terminal.
 
+When initializing Zsh, the installer excludes insecure completion directories
+with `compinit -i`. If this omits other completions, inspect `compaudit` and fix
+the reported ownership or permissions; do not bypass the audit with `-u`.
+
 Bash can source its script directly. Zsh requires `compinit` before sourcing;
 for autoloading, save as `_spatius` in an `fpath` directory configured before
 `compinit`. Fish automatically loads `spatius.fish` from its user completions
