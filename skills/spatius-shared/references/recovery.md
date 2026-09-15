@@ -42,3 +42,24 @@ in place of `spatius`.
 
 Studio login and setup errors retain their existing recovery rules above.
 The installer never opts into `--retry-uncertain`.
+
+## Non-interactive updates
+
+`spatius update` works without a TTY and does not run Studio login or setup.
+Its structured failure includes the completed CLI result, stage, and discovered
+skill statuses. Completed steps remain installed; rerunning also retries the
+skills step when the CLI is already current.
+
+For `UPDATE_SKILLS_INCOMPLETE`, inspect `npx skills list --json` and
+`npx skills list --global --json`, then compare each Spatius skill's
+`metadata.version` with `spatius --version`. `skills update` follows recorded
+sources and refs and may skip local bundles; it cannot guarantee an npm version
+match. Resolve the source/version mismatch manually or use the interactive
+installer from the desired CLI version to install its matching bundled skills.
+The updater does not reinstall, back up, or roll back skills itself.
+
+For registry or npm permission failures, fix connectivity or the user-owned npm
+prefix/cache and rerun `spatius update`. For missing or invalid bundled metadata,
+repair the global package from a release whose tarball passed validation. Keep
+PATH warnings visible: the verified global binary may be shadowed by another
+installation. Update notices do not change command success, errors, or job state.

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { setVersion, skillNames } from '../set-version.mjs';
 import {
   checkDeployment,
   deploymentVersion,
@@ -226,14 +227,25 @@ test('npm network failure and transfer deadline stop admission', async (t) => {
   );
 });
 
-test('prepare-release changes only the runner manifest after every preflight succeeds', async (t) => {
+test('prepare-release stamps the runner manifest and skills after every preflight succeeds', async (t) => {
   const root = await temporaryDirectory(t);
   await mkdir(join(root, 'scripts'));
   await mkdir(join(root, 'packages/cli'), { recursive: true });
-  for (const name of ['prepare-release.mjs', 'release.mjs']) {
+  for (const name of [
+    'prepare-release.mjs',
+    'release.mjs',
+    'set-version.mjs',
+  ]) {
     await writeFile(
       join(root, 'scripts', name),
       await readFile(new URL('../' + name, import.meta.url)),
+    );
+  }
+  for (const name of skillNames) {
+    await mkdir(join(root, 'skills', name), { recursive: true });
+    await writeFile(
+      join(root, 'skills', name, 'SKILL.md'),
+      `---\nname: ${name}\nmetadata:\n  version: "0.1.0-beta.0"\n---\nKeep guidance.\n`,
     );
   }
   const manifestPath = join(root, 'packages/cli/package.json');
@@ -286,7 +298,7 @@ test('prepare-release changes only the runner manifest after every preflight suc
       },
     ).trim();
   git('init', '--quiet', '--initial-branch=main');
-  git('add', 'scripts', 'packages', 'mock-fetch.mjs');
+  git('add', 'scripts', 'packages', 'skills', 'mock-fetch.mjs');
   git('commit', '--no-gpg-sign', '--quiet', '-m', 'release source');
   const sha = git('rev-parse', 'HEAD');
   git('tag', 'v0.1.0-beta.1');
@@ -335,7 +347,18 @@ test('prepare-release changes only the runner manifest after every preflight suc
     await readFile(outputPath, 'utf8'),
     'version=0.1.0-beta.1\ndist_tag=beta\ntag=v0.1.0-beta.1\n',
   );
-  assert.equal(git('diff', '--name-only'), 'packages/cli/package.json');
+  assert.deepEqual(
+    git('diff', '--name-only').split('\n').sort(),
+    [
+      'packages/cli/package.json',
+      ...skillNames.map((name) => `skills/${name}/SKILL.md`),
+    ].sort(),
+  );
+  for (const name of skillNames)
+    assert.match(
+      await readFile(join(root, 'skills', name, 'SKILL.md'), 'utf8'),
+      /version: "0.1.0-beta.1"/,
+    );
   assert.equal(git('rev-parse', 'HEAD'), sha);
   assert.equal(git('tag', '--list'), 'v0.1.0-beta.1');
 });
@@ -566,4 +589,53 @@ test('aborting deployment checks prevents additional network requests', async ()
     /Stopped while waiting/,
   );
   assert.equal(calls, 1);
+});
+
+test('version stamping validates every input before writing and preserves guidance', async (t) => {
+  const root = await temporaryDirectory(t);
+  await mkdir(join(root, 'packages/cli'), { recursive: true });
+  const manifest = join(root, 'packages/cli/package.json');
+  const original = JSON.stringify({
+    name: '@spatius/cli',
+    version: '0.1.0-beta.0',
+  });
+  await writeFile(manifest, original);
+  for (const version of [
+    'v1.2.3',
+    '1.02.3',
+    '1.2.3+build',
+    '1.2.3-beta.01',
+    '1.2.3\n',
+    '',
+    undefined,
+  ]) {
+    await assert.rejects(setVersion(root, version), /canonical/);
+    assert.equal(await readFile(manifest, 'utf8'), original);
+  }
+  for (const name of skillNames) {
+    await mkdir(join(root, 'skills', name), { recursive: true });
+    await writeFile(
+      join(root, 'skills', name, 'SKILL.md'),
+      `---\nname: ${name}\nmetadata:\n  version: "0.1.0-beta.0"\n---\nKeep guidance.\n`,
+    );
+  }
+  const broken = join(root, 'skills', skillNames[2], 'SKILL.md');
+  const good = await readFile(broken, 'utf8');
+  await writeFile(
+    broken,
+    good.replace('  version: "0.1.0-beta.0"', '  other: value'),
+  );
+  await assert.rejects(setVersion(root, '1.2.3'), /metadata.version/);
+  assert.equal(await readFile(manifest, 'utf8'), original);
+  assert.match(
+    await readFile(join(root, 'skills', skillNames[0], 'SKILL.md'), 'utf8'),
+    /0.1.0-beta.0/,
+  );
+  await writeFile(broken, good);
+  await setVersion(root, '1.2.3');
+  assert.equal(JSON.parse(await readFile(manifest, 'utf8')).version, '1.2.3');
+  assert.equal(
+    await readFile(broken, 'utf8'),
+    good.replace('0.1.0-beta.0', '1.2.3'),
+  );
 });

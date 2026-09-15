@@ -99,6 +99,22 @@ export const definitions: Definition[] = [
     interactive: true,
   },
   {
+    path: 'update',
+    description:
+      'Update the global CLI and existing Spatius skills without prompts.',
+    output:
+      'Verified CLI version and per-skill version status; partial completion details on failure.',
+    example: 'spatius update',
+    flags: [
+      {
+        flags: '--channel <channel>',
+        description:
+          'Select an npm release channel; defaults to the installed release track.',
+        choices: ['latest', 'beta'],
+      },
+    ],
+  },
+  {
     path: 'auth login',
     description: 'Authorize this local CLI through Spatius Studio.',
     output: 'Authenticated user and selected app metadata; no credentials.',
@@ -405,6 +421,13 @@ export function commandSchema(path?: string) {
         recovery: 'Run spatius schema to discover available commands.',
       },
     );
+  const updateAvailable = {
+    optional: true,
+    currentVersion: 'string',
+    latestVersion: 'string',
+    message: 'string',
+    command: 'spatius update',
+  };
   return {
     schemaVersion: 1,
     executable: 'spatius',
@@ -412,10 +435,12 @@ export function commandSchema(path?: string) {
       schemaVersion: 1,
       ok: true,
       data: 'command-specific result',
+      updateAvailable,
     },
     errorEnvelope: {
       schemaVersion: 1,
       ok: false,
+      updateAvailable,
       error: {
         code: 'string',
         message: 'string',
@@ -507,6 +532,17 @@ export function buildProgram(
       }
       const count = def.args?.length ?? 0;
       const values = args[count] as Values;
+      if (def.path === 'update') {
+        const { runUpdate } = await import('./update/index.js');
+        emit(
+          await runUpdate({
+            version,
+            channel: values.channel as 'latest' | 'beta' | undefined,
+            signal: presentation.signal ?? new AbortController().signal,
+          }),
+        );
+        return;
+      }
       if (typeof values.timeout === 'number' && values.timeout <= 0)
         throw new CliError('INVALID_ARGUMENT', '--timeout must be positive.', {
           exitCode: 2,

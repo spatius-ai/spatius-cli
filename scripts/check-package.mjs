@@ -13,6 +13,10 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { integrity, PACKAGE_NAME } from './release.mjs';
+import { parse } from 'yaml';
+
+// Artifact validation never starts an external update check.
+process.env.SPATIUS_NO_UPDATE_NOTIFIER = '1';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);
@@ -45,6 +49,7 @@ try {
   const paths = new Set(pack.files.map((file) => file.path));
   for (const path of [
     'dist/cli.js',
+    'dist/update-check.js',
     'README.md',
     'LICENSE',
     'THIRD_PARTY_NOTICES.md',
@@ -134,8 +139,36 @@ try {
     throw new Error(
       'Packaged installer does not resolve its own bundled skills.',
     );
-  for (const name of assets.skillNames)
-    await readFile(join(assets.bundledSkillsDirectory(), name, 'SKILL.md'));
+  for (const name of assets.skillNames) {
+    const content = await readFile(
+      join(assets.bundledSkillsDirectory(), name, 'SKILL.md'),
+      'utf8',
+    );
+    const front = content.match(/^---\n([\s\S]*?)\n---\n/);
+    if (!front || parse(front[1]).metadata?.version !== version)
+      throw new Error('Packaged skill version differs from the CLI: ' + name);
+  }
+  const updateSchema = JSON.parse(
+    execFileSync(process.execPath, [executable, 'schema', 'update'], {
+      cwd: staging,
+      encoding: 'utf8',
+    }),
+  );
+  if (
+    updateSchema.data.commands[0].path !== 'update' ||
+    updateSchema.data.commands[0].interactive ||
+    !updateSchema.data.outputEnvelope.updateAvailable?.optional
+  )
+    throw new Error('Packaged update command contract is missing.');
+  execFileSync(process.execPath, [executable, 'update', '--help'], {
+    cwd: staging,
+    stdio: 'pipe',
+  });
+  // No arguments means no work: verifies helper imports without contacting npm.
+  execFileSync(process.execPath, [join(installed, 'dist/update-check.js')], {
+    cwd: staging,
+    stdio: 'pipe',
+  });
   // Loading the lazy installer checks all declared runtime dependencies, but rejects before effects.
   try {
     execFileSync(process.execPath, [executable, 'install', '--json'], {

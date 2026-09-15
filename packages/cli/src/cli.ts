@@ -6,6 +6,14 @@ import { buildProgram, type Context } from './commands.js';
 import { readConfig } from './core/config.js';
 import { asCliError, CliError } from './core/errors.js';
 import pkg from '../package.json';
+import { createNotifier } from './update/notifier.js';
+
+const notifier = createNotifier({
+  version: pkg.version,
+  args: process.argv.slice(2),
+});
+const notice = notifier.notice ? { updateAvailable: notifier.notice } : {};
+let emitted = false;
 
 const controller = new AbortController();
 const interrupt = () =>
@@ -16,10 +24,12 @@ const progress = (event: unknown) =>
   process.stderr.write(
     `${JSON.stringify({ schemaVersion: 1, ...(typeof event === 'object' && event !== null ? event : { event }) })}\n`,
   );
-const emit = (data: unknown) =>
+const emit = (data: unknown) => {
+  emitted = true;
   process.stdout.write(
-    `${JSON.stringify({ schemaVersion: 1, ok: true, data })}\n`,
+    `${JSON.stringify({ schemaVersion: 1, ok: true, data, ...notice })}\n`,
   );
+};
 let context: Context | undefined;
 let humanOutput = false;
 const program = buildProgram(
@@ -58,6 +68,7 @@ try {
   if (error instanceof CommanderError && error.exitCode === 0)
     process.exitCode = 0;
   else {
+    emitted = true;
     const e =
       error instanceof CommanderError
         ? new CliError('INVALID_ARGUMENT', error.message, {
@@ -71,11 +82,14 @@ try {
       );
     else
       process.stderr.write(
-        `${JSON.stringify({ schemaVersion: 1, ok: false, error: { code: e.code, message: e.message, retryable: e.options.retryable ?? false, recovery: e.options.recovery, details: e.options.details } })}\n`,
+        `${JSON.stringify({ schemaVersion: 1, ok: false, error: { code: e.code, message: e.message, retryable: e.options.retryable ?? false, recovery: e.options.recovery, details: e.options.details }, ...notice })}\n`,
       );
     process.exitCode = e.options.exitCode ?? 1;
   }
 } finally {
+  if (!emitted && notifier.notice)
+    process.stderr.write(`${notifier.notice.message}\n`);
+  notifier.finish();
   process.removeListener('SIGINT', interrupt);
   process.removeListener('SIGTERM', interrupt);
 }
