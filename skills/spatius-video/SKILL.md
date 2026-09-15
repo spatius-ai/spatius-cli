@@ -2,6 +2,8 @@
 name: spatius-video
 description: Render downloadable Spatius avatar videos from audio and optional backgrounds using Spatius CLI. Use for local or URL media preparation, video submission, polling, safe resume, and MP4 download.
 license: MIT
+metadata:
+  version: '0.1.0-beta.0'
 ---
 
 # Render an avatar video

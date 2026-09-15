@@ -388,6 +388,7 @@ it('lets an agent follow setup → local portrait → interrupted video → reta
             cwd: packageDirectory,
             env: {
               ...process.env,
+              SPATIUS_NO_UPDATE_NOTIFIER: '1',
               SPATIUS_CONFIG_DIR: configDir,
               SPATIUS_STUDIO_URL: origin,
               SPATIUS_STUDIO_WEB_URL: origin,

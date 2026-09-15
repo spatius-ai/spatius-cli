@@ -2,6 +2,8 @@
 name: spatius-avatar
 description: List public and custom Studio avatars, create Spatius avatars from portrait images, and poll avatar creation jobs with Spatius CLI. Use for avatar discovery, creation, and recovery, including preparing local image inputs.
 license: MIT
+metadata:
+  version: '0.1.0-beta.0'
 ---
 
 # Create a Spatius avatar

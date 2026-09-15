@@ -6,6 +6,9 @@ import { buildProgram, definitions } from '../packages/cli/dist/commands.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const skills = join(root, 'skills');
+const manifest = JSON.parse(
+  await readFile(join(root, 'packages/cli/package.json'), 'utf8'),
+);
 let examples = 0;
 function argv(line) {
   return (line.match(/"(?:[^"\\]|\\.)*"|'[^']*'|\S+/g) ?? []).map((v) =>
@@ -49,6 +52,10 @@ async function walk(directory) {
       const front = content.match(/^---\n([\s\S]*?)\n---\n/);
       if (!front) throw new Error(`Missing skill frontmatter: ${path}`);
       const metadata = parse(front[1]);
+      if (metadata.metadata?.version !== manifest.version)
+        throw new Error(
+          `Skill version must match CLI ${manifest.version}: ${path}`,
+        );
       if (
         !/^[a-z0-9-]{1,64}$/.test(metadata.name) ||
         typeof metadata.description !== 'string' ||

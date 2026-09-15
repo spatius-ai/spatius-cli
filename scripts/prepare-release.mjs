@@ -1,6 +1,7 @@
-import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { setVersion } from './set-version.mjs';
 import {
   PACKAGE_NAME,
   requireUnpublished,
@@ -24,8 +25,7 @@ try {
   if (manifest.name !== PACKAGE_NAME)
     throw new Error('The CLI manifest has an unexpected package name.');
   await requireUnpublished(release.version);
-  manifest.version = release.version;
-  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  await setVersion(root, release.version);
   if (process.env.GITHUB_OUTPUT)
     await appendFile(
       process.env.GITHUB_OUTPUT,

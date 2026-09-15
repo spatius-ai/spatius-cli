@@ -51,7 +51,10 @@ publishes `@spatius/cli`. Tags provide the version: `v0.1.0-beta.1` goes to npm
 `beta`; `v0.1.0` goes to `latest`. Both deploy `https://cli-media.spatius.ai`.
 The release commit must be on `main`, and the repository must be public. Version
 changes occur only in the release runner; do not commit a version bump for each
-release.
+release. `scripts/set-version.mjs <version>` stamps the CLI manifest and all three
+skills' quoted `metadata.version` fields together, after validating every input.
+Release preparation invokes it before dependencies are installed. Skill and
+tarball checks require exact CLI/skill version equality.
 
 Keep Worker `/v1` changes compatible with older CLI versions and uploads already
 in progress. Publish one release at a time. The
@@ -72,3 +75,21 @@ When changing terminal presentation, review in a PTY against create-spatius-app:
 normal animation, narrow terminals, NO_COLOR, resize, handoff to skills, and
 Ctrl+C. Use a local mock-service harness; never run live npm global installation
 or Studio setup as a test side effect. Run `pnpm check` before handoff.
+
+## Updater development
+
+`spatius update` loads its services lazily without constructing Studio auth or
+the installer UI. All updater dependencies load before replacing the global
+package. Tests inject npm/skills runners and registry fetches; never update real
+global packages or agent skills during tests. The upstream `skills update`
+command owns scope, source, and overwrite behavior. Verification reports what
+`skills list --json` discovers in project and global scope; no custom reinstall
+or rollback is attempted.
+
+The notifier reads a bounded local `update-check.json` and launches the packaged
+`dist/update-check.js` helper only after command output. Registry IO happens
+exclusively in that detached process with a five-second request deadline and
+ten-second lifetime. A lock expires after 30 seconds; failed checks wait one
+hour, successful checks 24 hours. Cache failures are silent. Tests and artifact
+checks disable the notifier unless explicitly testing it, and compare warm-cache
+startup with the baseline rather than making network speed a test prerequisite.
