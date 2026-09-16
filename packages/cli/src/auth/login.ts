@@ -133,6 +133,9 @@ export async function browserLogin(
         'Studio returned an unexpected authorization URL.',
       );
     }
+    if (authorizeUrl.hostname.endsWith('.spatius.ai')) {
+      authorizeUrl.searchParams.set('utm_source', 'spatius-cli');
+    }
     const expiresAt =
       typeof session.expiresAt === 'string'
         ? Date.parse(session.expiresAt) - Date.now()
