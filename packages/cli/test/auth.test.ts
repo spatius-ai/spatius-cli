@@ -155,6 +155,54 @@ describe('persistent login', () => {
     await expect(fetch(session!.redirectUri!)).rejects.toThrow();
   });
 
+  it.each([
+    [
+      'https://app.spatius.ai/cli/auth/request',
+      'https://app.spatius.ai/cli/auth/request?utm_source=spatius-cli',
+    ],
+    [
+      'https://auth.studio.spatius.ai/cli/auth/request?state=abc&redirect_uri=http%3A%2F%2Flocalhost%2Fcallback#approve',
+      'https://auth.studio.spatius.ai/cli/auth/request?state=abc&redirect_uri=http%3A%2F%2Flocalhost%2Fcallback&utm_source=spatius-cli#approve',
+    ],
+    [
+      'https://app.spatius.ai/cli/auth/request?utm_source=other&utm_source=duplicate&state=abc',
+      'https://app.spatius.ai/cli/auth/request?utm_source=spatius-cli&state=abc',
+    ],
+    [
+      'http://localhost:1234/cli/auth/request?state=abc#approve',
+      'http://localhost:1234/cli/auth/request?state=abc#approve',
+    ],
+    [
+      'https://notspatius.ai/cli/auth/request?utm_source=custom',
+      'https://notspatius.ai/cli/auth/request?utm_source=custom',
+    ],
+    [
+      'https://spatius.ai.example.com/cli/auth/request',
+      'https://spatius.ai.example.com/cli/auth/request',
+    ],
+  ])(
+    'attributes the printed approval URL for %s',
+    async (authorizeUrl, expectedUrl) => {
+      const controller = new AbortController();
+      const onAuthorize = vi.fn(() => controller.abort());
+      const auth = new AuthManager({
+        studioOrigin,
+        studioWebOrigin: new URL(authorizeUrl).origin,
+        consoleOrigin,
+        mediaOrigin,
+        configDir: await directory(),
+        fetch: client((url) => {
+          expect(url.href).toBe(`${studioOrigin}/v1/cli/auth/sessions`);
+          return json({ authRequestId: 'request', authorizeUrl });
+        }),
+      });
+      await expect(
+        auth.login({ noBrowser: true, signal: controller.signal, onAuthorize }),
+      ).rejects.toMatchObject({ code: 'INTERRUPTED' });
+      expect(onAuthorize).toHaveBeenCalledExactlyOnceWith(expectedUrl);
+    },
+  );
+
   it('rejects an authorization link outside the configured Studio frontend origin', async () => {
     const auth = manager(
       await directory(),

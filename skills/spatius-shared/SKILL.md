@@ -53,7 +53,10 @@ environment, `SPATIUS_STUDIO_WEB_URL` selects the approved browser origin and
 
 Run login only when needed. It opens a local browser approval page and waits up
 to five minutes. Hand the approval URL to the user; keep the process alive until
-approval or timeout. The browser must reach the CLI's localhost callback. A
+approval or timeout. Spatius-hosted approval links include `utm_source=spatius-cli`,
+for example `https://app.spatius.ai/cli/auth/<request-id>?utm_source=spatius-cli`.
+Pass along the complete URL printed by the CLI, including its query parameters.
+The browser must reach the CLI's localhost callback. A
 remote agent without that connection needs the user to run login on the machine
 where subsequent CLI commands run. Do not request tokens or passwords in chat.
 

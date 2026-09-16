@@ -86,6 +86,6 @@ usually appears on the next invocation. Set `SPATIUS_NO_UPDATE_NOTIFIER=1` to
 disable notices and background checks.
 
 See the [workflow guide](docs/workflows.md) for input requirements and recovery,
-and the [Spatius API documentation](https://docs.spatius.ai/api-reference/video-generation)
+and the [Spatius API documentation](https://docs.spatius.ai/api-reference/video-generation?utm_source=spatius-cli)
 for service behavior. Repository development instructions are in
 [CONTRIBUTING.md](CONTRIBUTING.md).

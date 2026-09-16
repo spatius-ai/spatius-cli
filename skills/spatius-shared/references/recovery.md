@@ -1,5 +1,9 @@
 # Recovery and credential boundaries
 
+If the browser cannot open automatically, use the complete printed approval URL
+from `spatius auth login --no-browser`, including `utm_source=spatius-cli` on
+Spatius-hosted links. Keep login running while the user approves on the same machine.
+
 | Condition                           | Next action                                                                                                                                                                         |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No login or `AUTH_RELOGIN_REQUIRED` | Have the user approve `spatius auth login` locally. A lost refresh response cannot safely reuse the old rotating token.                                                             |
