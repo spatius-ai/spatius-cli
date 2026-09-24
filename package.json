@@ -2,7 +2,7 @@
   "name": "spatius-cli-workspace",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.6.0",
   "scripts": {
     "build": "pnpm --filter @spatius/cli build && pnpm --filter @spatius/media-worker build",
     "typecheck": "pnpm -r typecheck",
