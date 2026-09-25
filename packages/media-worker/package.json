@@ -15,7 +15,7 @@
     "@spatius/contracts": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "1.1.8",
+    "@cloudflare/vitest-plugin": "1.2.8",
     "vitest": "~4.1.0",
     "wrangler": "4.131.1"
   }
