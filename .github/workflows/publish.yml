@@ -146,7 +146,7 @@ jobs:
         run: node scripts/prepare-release.mjs
 
       - name: Download the validated npm artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{ needs.build.outputs.artifact_id }}
           path: ${{ runner.temp }}/release
